@@ -218,7 +218,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:57</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 21:00</span></i>
   <div id="clock"></div>
 </header>
 
@@ -298,7 +298,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script src="lzstring.min.js"></script>
 <script src="jsqr.min.js"></script>
 <script>
@@ -1219,35 +1219,18 @@ function renderQRModal() {
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('open');
 
-  // Render QR code to canvas (high-DPI aware for sharp scanning)
+  // Render QR code to canvas using qrcode library
   setTimeout(() => {
-    const typeNumber = 0; // auto-detect
-    const qr = qrcode(typeNumber, 'M');
-    qr.addData(payload, 'Byte');
-    qr.make();
     const canvas = document.getElementById('qrCanvas');
-    const cssSize = 300;
-    const dpr = window.devicePixelRatio || 1;
-    const size = cssSize * dpr;
-    const moduleCount = qr.getModuleCount();
-    // Use integer cell size for pixel-perfect modules
-    const cellSize = Math.floor(size / moduleCount);
-    const totalSize = cellSize * moduleCount;
-    canvas.width = totalSize;
-    canvas.height = totalSize;
-    canvas.style.width = cssSize + 'px';
-    canvas.style.height = cssSize + 'px';
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, totalSize, totalSize);
-    ctx.fillStyle = '#000';
-    for (let row = 0; row < moduleCount; row++) {
-      for (let col = 0; col < moduleCount; col++) {
-        if (qr.isDark(row, col)) {
-          ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
-        }
-      }
-    }
+    QRCode.toCanvas(canvas, payload, {
+      width: 300 * (window.devicePixelRatio || 1),
+      margin: 2,
+      errorCorrectionLevel: 'M'
+    }, function(err) {
+      if (err) console.error('QR render error:', err);
+      canvas.style.width = '300px';
+      canvas.style.height = '300px';
+    });
   }, 50);
 }
 
