@@ -323,16 +323,17 @@ updateClock();
 
 // --- Stopwatch State (persistent) ---
 const SW_KEY = 'baby_tracker_stopwatch';
-let stopwatchStart = null;
-let stopwatchElapsed = 0;
+let stopwatchStart = null;   // timestamp when current segment started
+let stopwatchElapsed = 0;    // ms accumulated in current segment (when paused)
 let swRunning = false;
 let swPaused = false;
-let swSide = '';
+let swSide = '';              // current side being timed
+let swSegments = [];          // [{side:'links', ms:123456}, ...]
 let switchReminderFired = false;
 let switchReminderInterval = null;
 
 function swSaveState() {
-  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide, reminderFired: switchReminderFired };
+  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide, segments: swSegments, reminderFired: switchReminderFired };
   localStorage.setItem(SW_KEY, JSON.stringify(state));
 }
 
@@ -345,6 +346,7 @@ function swLoadState() {
     swRunning = s.running || false;
     swPaused = s.paused || false;
     swSide = s.side || '';
+    swSegments = s.segments || [];
     switchReminderFired = s.reminderFired || false;
     return swRunning || swPaused;
   } catch { return false; }
@@ -357,16 +359,49 @@ function swClearState() {
   stopwatchElapsed = 0;
   stopwatchStart = null;
   swSide = '';
+  swSegments = [];
 }
 
-function swGetTotal() {
+// Get ms of current segment (running or paused)
+function swCurrentSegmentMs() {
   if (swRunning && stopwatchStart) return stopwatchElapsed + (Date.now() - stopwatchStart);
   return stopwatchElapsed;
+}
+
+// Get total ms across all segments + current
+function swGetTotal() {
+  const prev = swSegments.reduce((s, seg) => s + seg.ms, 0);
+  return prev + swCurrentSegmentMs();
+}
+
+// Get ms for current segment only (for reminder timing)
+function swCurrentSegmentTotal() {
+  return swCurrentSegmentMs();
 }
 
 function swFormatTime(ms) {
   const s = Math.floor(ms / 1000);
   return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+
+// Finalize current segment into swSegments
+function swFinalizeSegment() {
+  const ms = swCurrentSegmentMs();
+  if (ms > 0 && swSide) {
+    swSegments.push({ side: swSide, ms });
+  }
+  stopwatchElapsed = 0;
+  stopwatchStart = null;
+}
+
+// Get per-side totals from segments
+function swGetSideTotals() {
+  const totals = { links: 0, rechts: 0, beide: 0 };
+  swSegments.forEach(seg => { if (totals.hasOwnProperty(seg.side)) totals[seg.side] += seg.ms; });
+  // Add current running segment
+  const cur = swCurrentSegmentMs();
+  if (cur > 0 && swSide && totals.hasOwnProperty(swSide)) totals[swSide] += cur;
+  return totals;
 }
 
 // Global tick — runs even when modal is closed
@@ -383,13 +418,15 @@ function swGlobalTick() {
       ind.style.display = 'none';
     }
   }
-  // Update modal display if open
+  // Update modal displays if open
   const display = document.getElementById('swDisplay');
   if (display) display.textContent = swFormatTime(total);
-  // Switch reminder — only when stillen modal is open
+  const segDisplay = document.getElementById('swSegDisplay');
+  if (segDisplay) segDisplay.textContent = swSide ? (swSide.charAt(0).toUpperCase() + swSide.slice(1) + ': ' + swFormatTime(swCurrentSegmentMs())) : '';
+  // Switch reminder — only when stillen modal is open, based on CURRENT segment time
   if (swRunning && !switchReminderFired && document.getElementById('switchReminder')) {
     const interval = parseInt(localStorage.getItem('baby_tracker_switch_interval'));
-    if (interval && total >= interval * 60000) {
+    if (interval && swCurrentSegmentMs() >= interval * 60000) {
       switchReminderFired = true;
       startSwitchReminder();
     }
@@ -401,10 +438,6 @@ setInterval(swGlobalTick, 250);
 
 // Restore on page load
 if (swLoadState()) {
-  if (swRunning) {
-    // Was running — keep it going
-    switchReminderFired = false;
-  }
   swGlobalTick();
 }
 
@@ -437,6 +470,16 @@ function openModal(type, existingEntry) {
     const showStop = hasActive ? '' : 'display:none';
     const pauseLabel = (hasActive && swPaused) ? '▶' : '⏸';
     const swTime = hasActive ? swFormatTime(swGetTotal()) : '00:00';
+    // Segment summary
+    let segSummary = '';
+    if (hasActive && swSegments.length > 0) {
+      const totals = swGetSideTotals();
+      const parts = [];
+      if (totals.links > 0) parts.push('L: ' + Math.round(totals.links / 60000) + ' Min');
+      if (totals.rechts > 0) parts.push('R: ' + Math.round(totals.rechts / 60000) + ' Min');
+      if (totals.beide > 0) parts.push('Beide: ' + Math.round(totals.beide / 60000) + ' Min');
+      segSummary = parts.join(' · ');
+    }
     html += `
       <label>Dauer (Minuten)</label>
       <div class="stopwatch">
@@ -446,6 +489,8 @@ function openModal(type, existingEntry) {
         <button class="sw-btn sw-stop" id="swStopBtn" onclick="swStop()" style="${showStop}">⏹</button>
         <span class="stopwatch-display" id="swDisplay">${swTime}</span>
       </div>
+      <div id="swSegDisplay" style="font-size:.8rem;color:var(--text2);margin-top:.3rem;font-variant-numeric:tabular-nums"></div>
+      ${segSummary ? `<div style="font-size:.8rem;color:var(--still);margin-top:.2rem;font-weight:600">${segSummary}</div>` : ''}
       <div id="switchReminder"></div>
       <label>Wechsel-Intervall (Min, optional)</label>
       <input type="number" id="mSwitchInterval" min="1" max="60" placeholder="z.B. 20" value="${localStorage.getItem('baby_tracker_switch_interval') || '20'}">
@@ -527,6 +572,15 @@ function saveModal() {
     if (!side) { alert('Bitte Brustseite wählen'); return; }
     data.durationMin = isNaN(dur) ? 0 : dur;
     data.side = side;
+    // Store per-side breakdown if segments exist
+    if (swSegments.length > 0) {
+      const totals = { links: 0, rechts: 0, beide: 0 };
+      swSegments.forEach(seg => { if (totals.hasOwnProperty(seg.side)) totals[seg.side] += seg.ms; });
+      data.durationLinks = Math.round(totals.links / 60000);
+      data.durationRechts = Math.round(totals.rechts / 60000);
+      if (totals.beide > 0) data.durationBeide = Math.round(totals.beide / 60000);
+      if (data.durationLinks > 0 && data.durationRechts > 0) data.side = 'beide';
+    }
     // Clear stopwatch after saving
     clearSwitchReminder();
     swClearState();
@@ -567,16 +621,30 @@ function swUpdateModalUI() {
     pauseBtn.style.display = 'none';
     stopBtn.style.display = 'none';
   }
+  // Update side toggles to match current swSide
+  const sideEl = document.getElementById('mSide');
+  if (sideEl && (swRunning || swPaused)) {
+    sideEl.value = swSide;
+    const btns = sideEl.parentElement.querySelectorAll('.toggle-btn');
+    btns.forEach(b => b.classList.toggle('active', b.dataset.val === swSide));
+  }
+}
+
+function swSwitchSideUI(newSide) {
+  const sideInput = document.getElementById('mSide');
+  if (sideInput) {
+    const btns = sideInput.parentElement.querySelectorAll('.toggle-btn');
+    btns.forEach(b => b.classList.toggle('active', b.dataset.val === newSide));
+    sideInput.value = newSide;
+  }
+  swSide = newSide;
 }
 
 function swStart() {
-  stopwatchStart = Date.now();
-  stopwatchElapsed = 0;
-  swRunning = true;
-  swPaused = false;
   // Save side
   const sideEl = document.getElementById('mSide');
   if (sideEl) swSide = sideEl.value;
+  if (!swSide) { alert('Bitte Brustseite wählen'); return; }
   // Save switch interval
   const si = document.getElementById('mSwitchInterval');
   if (si) {
@@ -584,6 +652,11 @@ function swStart() {
     if (!isNaN(v) && v > 0) localStorage.setItem('baby_tracker_switch_interval', v);
     else localStorage.removeItem('baby_tracker_switch_interval');
   }
+  swSegments = [];
+  stopwatchStart = Date.now();
+  stopwatchElapsed = 0;
+  swRunning = true;
+  swPaused = false;
   switchReminderFired = false;
   clearSwitchReminder();
   swSaveState();
@@ -602,6 +675,11 @@ function swPause() {
 }
 
 function swResume() {
+  // Auto-switch side if reminder was fired
+  if (switchReminderFired) {
+    swDoSwitch();
+    return;
+  }
   stopwatchStart = Date.now();
   swRunning = true;
   swPaused = false;
@@ -613,36 +691,52 @@ function swStop() {
   if (swRunning) {
     stopwatchElapsed += Date.now() - stopwatchStart;
   }
+  // Finalize current segment
+  swFinalizeSegment();
+  // Set duration to total
   const dur = document.getElementById('mDuration');
-  if (dur) dur.value = Math.round(stopwatchElapsed / 60000);
+  const totalMs = swSegments.reduce((s, seg) => s + seg.ms, 0);
+  if (dur) dur.value = Math.round(totalMs / 60000);
+  // Update side to reflect what was used
+  if (swSegments.length > 0) {
+    const sides = [...new Set(swSegments.map(s => s.side))];
+    if (sides.length > 1) swSwitchSideUI('beide');
+    else swSwitchSideUI(sides[0]);
+  }
   clearSwitchReminder();
-  swClearState();
+  // Keep segments for saveModal, but stop running
+  swRunning = false;
+  swPaused = false;
+  stopwatchElapsed = 0;
+  stopwatchStart = null;
+  swSaveState();
+  swUpdateModalUI();
+}
+
+function swDoSwitch() {
+  // Finalize current segment
+  if (swPaused) {
+    // Already accumulated in stopwatchElapsed
+  } else if (swRunning) {
+    stopwatchElapsed += Date.now() - stopwatchStart;
+  }
+  swFinalizeSegment();
+  // Switch side
+  const newSide = swSide === 'links' ? 'rechts' : 'links';
+  swSwitchSideUI(newSide);
+  // Restart fresh segment
+  stopwatchStart = Date.now();
+  stopwatchElapsed = 0;
+  swRunning = true;
+  swPaused = false;
+  switchReminderFired = false;
+  clearSwitchReminder();
+  swSaveState();
   swUpdateModalUI();
 }
 
 function swSwitchBreast() {
-  clearSwitchReminder();
-  switchReminderFired = false;
-  if (swRunning) {
-    stopwatchElapsed += Date.now() - stopwatchStart;
-  }
-  const dur = document.getElementById('mDuration');
-  if (dur) dur.value = Math.round(stopwatchElapsed / 60000);
-  // Toggle breast side
-  const sideInput = document.getElementById('mSide');
-  if (sideInput) {
-    const btns = sideInput.parentElement.querySelectorAll('.toggle-btn');
-    const newSide = sideInput.value === 'links' ? 'rechts' : 'links';
-    btns.forEach(b => b.classList.toggle('active', b.dataset.val === newSide));
-    sideInput.value = newSide;
-    swSide = newSide;
-  }
-  // Restart fresh
-  stopwatchElapsed = 0;
-  stopwatchStart = Date.now();
-  swRunning = true;
-  swPaused = false;
-  swSaveState();
+  swDoSwitch();
 }
 
 function playBeep() {
@@ -723,9 +817,17 @@ function renderEntries() {
       const iconSymbols = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
 
       if (e.type === 'stillen') {
-        const sideMap = { links: 'Links', rechts: 'Rechts', beide: 'Beide Seiten' };
-        detail = `${sideMap[e.side] || e.side}`;
-        if (e.durationMin) detail += ` · ${e.durationMin} Min`;
+        if (e.durationLinks > 0 || e.durationRechts > 0) {
+          const parts = [];
+          if (e.durationLinks > 0) parts.push('L: ' + e.durationLinks + ' Min');
+          if (e.durationRechts > 0) parts.push('R: ' + e.durationRechts + ' Min');
+          detail = parts.join(' · ');
+          if (e.durationMin) detail += ` (${e.durationMin} Min ges.)`;
+        } else {
+          const sideMap = { links: 'Links', rechts: 'Rechts', beide: 'Beide Seiten' };
+          detail = `${sideMap[e.side] || e.side}`;
+          if (e.durationMin) detail += ` · ${e.durationMin} Min`;
+        }
       } else if (e.type === 'wickeln') {
         const dtMap = { nass: '💧 Nass', stuhl: '💩 Stuhl', beides: '💧💩 Beides' };
         detail = dtMap[e.diaperType] || e.diaperType;
@@ -1151,12 +1253,16 @@ function chartDefaults(mini) {
   };
 }
 
+function getEntryLinks(e) { return e.durationLinks || (e.side === 'links' ? e.durationMin : 0) || 0; }
+function getEntryRechts(e) { return e.durationRechts || (e.side === 'rechts' ? e.durationMin : 0) || 0; }
+function getEntryBeide(e) { return e.durationBeide || (e.side === 'beide' ? e.durationMin : 0) || 0; }
+
 function buildStillzeitData() {
   const entries = loadEntries().filter(e => e.type === 'stillen' && e.durationMin && entryInRange(e));
   const days = getChartDays();
-  const linksData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.side === 'links').reduce((s, e) => s + e.durationMin, 0));
-  const rechtsData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.side === 'rechts').reduce((s, e) => s + e.durationMin, 0));
-  const beideData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.side === 'beide').reduce((s, e) => s + e.durationMin, 0));
+  const linksData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d).reduce((s, e) => s + getEntryLinks(e), 0));
+  const rechtsData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d).reduce((s, e) => s + getEntryRechts(e), 0));
+  const beideData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d).reduce((s, e) => s + getEntryBeide(e), 0));
   return {
     labels: days.map(dayLabel),
     datasets: [
