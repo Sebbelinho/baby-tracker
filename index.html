@@ -499,6 +499,7 @@ function openModal(type, existingEntry) {
         <button class="toggle-btn${side==='links'?' active':''}" data-val="links" onclick="pickToggle(this,'mSide')">Links</button>
         <button class="toggle-btn${side==='rechts'?' active':''}" data-val="rechts" onclick="pickToggle(this,'mSide')">Rechts</button>
         <button class="toggle-btn${side==='beide'?' active':''}" data-val="beide" onclick="pickToggle(this,'mSide')">Beide</button>
+        <button class="toggle-btn" id="swSwitchBtn" onclick="swManualSwitch()" ${hasActive && swPaused ? '' : 'disabled'} style="background:var(--still-bg);color:var(--still);${hasActive ? '' : 'display:none'}">🔄 Wechsel</button>
       </div>
       <input type="hidden" id="mSide" value="${side}">`;
   } else if (type === 'wickeln') {
@@ -625,8 +626,14 @@ function swUpdateModalUI() {
   const sideEl = document.getElementById('mSide');
   if (sideEl && (swRunning || swPaused)) {
     sideEl.value = swSide;
-    const btns = sideEl.parentElement.querySelectorAll('.toggle-btn');
+    const btns = sideEl.parentElement.querySelectorAll('.toggle-btn[data-val]');
     btns.forEach(b => b.classList.toggle('active', b.dataset.val === swSide));
+  }
+  // Enable switch button only when paused
+  const switchBtn = document.getElementById('swSwitchBtn');
+  if (switchBtn) {
+    switchBtn.disabled = !swPaused;
+    switchBtn.style.display = (swRunning || swPaused) ? '' : 'none';
   }
 }
 
@@ -675,14 +682,25 @@ function swPause() {
 }
 
 function swResume() {
-  // Auto-switch side if reminder was fired
-  if (switchReminderFired) {
-    swDoSwitch();
-    return;
-  }
   stopwatchStart = Date.now();
   swRunning = true;
   swPaused = false;
+  switchReminderFired = false;
+  clearSwitchReminder();
+  swSaveState();
+  swUpdateModalUI();
+}
+
+function swManualSwitch() {
+  if (!swPaused) return;
+  // Finalize current segment
+  swFinalizeSegment();
+  // Switch side
+  const newSide = swSide === 'links' ? 'rechts' : 'links';
+  swSwitchSideUI(newSide);
+  // Stay paused — user must press Start to continue
+  stopwatchStart = null;
+  stopwatchElapsed = 0;
   swSaveState();
   swUpdateModalUI();
 }
@@ -713,30 +731,23 @@ function swStop() {
   swUpdateModalUI();
 }
 
-function swDoSwitch() {
-  // Finalize current segment
-  if (swPaused) {
-    // Already accumulated in stopwatchElapsed
-  } else if (swRunning) {
+
+function swSwitchBreast() {
+  // Called from reminder button — pause, finalize segment, switch side
+  if (swRunning) {
     stopwatchElapsed += Date.now() - stopwatchStart;
+    swRunning = false;
+    swPaused = true;
   }
   swFinalizeSegment();
-  // Switch side
   const newSide = swSide === 'links' ? 'rechts' : 'links';
   swSwitchSideUI(newSide);
-  // Restart fresh segment
-  stopwatchStart = Date.now();
+  stopwatchStart = null;
   stopwatchElapsed = 0;
-  swRunning = true;
-  swPaused = false;
   switchReminderFired = false;
   clearSwitchReminder();
   swSaveState();
   swUpdateModalUI();
-}
-
-function swSwitchBreast() {
-  swDoSwitch();
 }
 
 function playBeep() {
