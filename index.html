@@ -218,7 +218,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:49</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:57</span></i>
   <div id="clock"></div>
 </header>
 
@@ -1223,7 +1223,7 @@ function renderQRModal() {
   setTimeout(() => {
     const typeNumber = 0; // auto-detect
     const qr = qrcode(typeNumber, 'M');
-    qr.addData(payload);
+    qr.addData(payload, 'Byte');
     qr.make();
     const canvas = document.getElementById('qrCanvas');
     const cssSize = 300;
