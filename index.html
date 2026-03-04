@@ -218,7 +218,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:42</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:49</span></i>
   <div id="clock"></div>
 </header>
 
@@ -1163,7 +1163,7 @@ function exportData() {
 }
 
 // --- QR Sync ---
-const QR_MAX_BYTES = 1000; // smaller chunks = less dense QR = easier to scan from camera
+const QR_MAX_BYTES = 400; // small chunks = sparse QR = reliable camera scanning
 
 function mergeEntries(local, remote) {
   const map = new Map(local.map(e => [e.id, e]));
@@ -1282,7 +1282,7 @@ function startScan() {
   scanCanvas = document.getElementById('scanCanvas');
   scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
 
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } })
     .then(stream => {
       scanStream = stream;
       const video = document.getElementById('scanVideo');
