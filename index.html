@@ -120,12 +120,22 @@
   .chart-full .btn-cancel{width:100%;margin-top:1rem;padding:.7rem;border:none;border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem;font-weight:600;cursor:pointer}
 
   /* Stopwatch pause */
-  .sw-pause{background:var(--temp);color:#fff}
+  .sw-pause{background:var(--danger);color:#fff}
 
   /* Switch reminder */
   .switch-reminder{animation:reminderBlink 1s ease-in-out infinite;border:2px solid var(--temp)!important;border-radius:var(--radius);padding:.5rem;margin-top:.5rem;text-align:center;font-weight:600;color:var(--temp);font-size:.9rem}
   @keyframes reminderBlink{0%,100%{opacity:1}50%{opacity:.3}}
   .sw-switch-btn{margin-top:.5rem;padding:.5rem 1.2rem;border:none;border-radius:10px;background:#34c759;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer}
+
+  /* Stool color reference */
+  .stool-ref-btn{width:100%;padding:.7rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.5rem;text-align:center}
+  .img-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;flex-direction:column;align-items:center;justify-content:center}
+  .img-overlay.open{display:flex}
+  .img-overlay img{max-width:100%;max-height:80dvh;object-fit:contain;touch-action:pinch-zoom}
+  .img-overlay-bar{display:flex;gap:.75rem;padding:1rem}
+  .img-overlay-bar button{padding:.6rem 1.2rem;border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer}
+  .img-bar-close{background:rgba(255,255,255,.2);color:#fff}
+  .img-bar-change{background:var(--wickel);color:#fff}
 
   /* Edit indicator */
   .editing-badge{font-size:.7rem;background:var(--accent);color:#fff;padding:2px 8px;border-radius:8px;margin-left:.5rem}
@@ -242,6 +252,16 @@
   </div>
 </div>
 
+<!-- Stool color image overlay -->
+<div class="img-overlay" id="stoolOverlay" onclick="if(event.target===this)closeStoolImage()">
+  <img id="stoolImage" src="" alt="Stuhlfarben-Referenz">
+  <div class="img-overlay-bar">
+    <button class="img-bar-change" onclick="pickStoolImage()">Bild ändern</button>
+    <button class="img-bar-close" onclick="closeStoolImage()">Schließen</button>
+  </div>
+</div>
+<input type="file" id="stoolFileInput" accept="image/*" style="display:none" onchange="handleStoolFile(this)">
+
 <!-- Modal -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal"></div>
@@ -355,7 +375,8 @@ function openModal(type, existingEntry) {
       </div>
       <input type="hidden" id="mDiaperType" value="${dt}">
       <label>Temperatur (°C, optional)</label>
-      <input type="number" id="mWickelTemp" min="34" max="42" step="0.1" placeholder="z.B. 37.2" value="${wtv}">`;
+      <input type="number" id="mWickelTemp" min="34" max="42" step="0.1" placeholder="z.B. 37.2" value="${wtv}">
+      <button class="stool-ref-btn" onclick="openStoolRef()">🎨 Stuhlfarben-Referenz</button>`;
   } else {
     const tv = existingEntry ? existingEntry.tempValue : '';
     html += `<label>Temperatur (°C)</label><input type="number" id="mTemp" min="34" max="42" step="0.1" placeholder="z.B. 37.2" value="${tv}">`;
@@ -657,6 +678,64 @@ function editEntry(id) {
 }
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// --- Stool Color Reference Image ---
+const STOOL_IMG_KEY = 'baby_tracker_stool_img';
+
+function openStoolRef() {
+  const img = localStorage.getItem(STOOL_IMG_KEY);
+  if (img) {
+    showStoolImage(img);
+  } else {
+    pickStoolImage();
+  }
+}
+
+function pickStoolImage() {
+  const input = document.getElementById('stoolFileInput');
+  input.value = '';
+  input.click();
+}
+
+function handleStoolFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    // Resize to save localStorage space
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const maxSize = 1200;
+      let w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      try {
+        localStorage.setItem(STOOL_IMG_KEY, dataUrl);
+        showStoolImage(dataUrl);
+      } catch (e) {
+        alert('Bild zu groß für den Speicher. Bitte ein kleineres Bild wählen.');
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function showStoolImage(src) {
+  document.getElementById('stoolImage').src = src;
+  document.getElementById('stoolOverlay').classList.add('open');
+}
+
+function closeStoolImage() {
+  document.getElementById('stoolOverlay').classList.remove('open');
+}
 
 // --- Export ---
 function exportData() {
