@@ -143,7 +143,8 @@
   .stool-ref-btn{width:100%;padding:.7rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.5rem;text-align:center}
   .img-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;flex-direction:column;align-items:center;justify-content:center}
   .img-overlay.open{display:flex}
-  .img-overlay img{max-width:100%;max-height:80dvh;object-fit:contain;touch-action:pinch-zoom}
+  .img-overlay img{max-width:100%;max-height:80dvh;object-fit:contain;touch-action:none;transition:transform .2s ease}
+  .img-overlay .img-wrap{overflow:hidden;display:flex;align-items:center;justify-content:center;width:100%;max-height:80dvh;touch-action:none}
   .img-overlay-bar{display:flex;gap:.75rem;padding:1rem}
   .img-overlay-bar button{padding:.6rem 1.2rem;border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer}
   .img-bar-close{background:rgba(255,255,255,.2);color:#fff}
@@ -267,8 +268,10 @@
 </div>
 
 <!-- Stool color image overlay -->
-<div class="img-overlay" id="stoolOverlay" onclick="if(event.target===this)closeStoolImage()">
-  <img id="stoolImage" src="" alt="Stuhlfarben-Referenz">
+<div class="img-overlay" id="stoolOverlay" onclick="if(event.target===this||event.target.classList.contains('img-wrap'))closeStoolImage()">
+  <div class="img-wrap" id="imgWrap">
+    <img id="stoolImage" src="" alt="Stuhlfarben-Referenz">
+  </div>
   <div class="img-overlay-bar">
     <button class="img-bar-change" onclick="pickStoolImage()">Bild ändern</button>
     <button class="img-bar-close" onclick="closeStoolImage()">Schließen</button>
@@ -1029,6 +1032,7 @@ function showStoolImage(src) {
   const img = document.getElementById('stoolImage');
   img.src = src;
   img.style.display = '';
+  imgZoomReset();
   const overlay = document.getElementById('stoolOverlay');
   overlay.classList.add('open');
   const bar = overlay.querySelector('.img-overlay-bar');
@@ -1039,7 +1043,110 @@ function showStoolImage(src) {
 
 function closeStoolImage() {
   document.getElementById('stoolOverlay').classList.remove('open');
+  imgZoomReset();
 }
+
+// --- Image zoom (pinch + double-tap) ---
+let imgScale = 1, imgX = 0, imgY = 0;
+let imgPinchStartDist = 0, imgPinchStartScale = 1;
+let imgPanStartX = 0, imgPanStartY = 0, imgPanStartImgX = 0, imgPanStartImgY = 0;
+let imgLastTap = 0;
+
+function imgZoomReset() {
+  imgScale = 1; imgX = 0; imgY = 0;
+  const img = document.getElementById('stoolImage');
+  if (img) img.style.transform = '';
+}
+
+function imgApplyTransform() {
+  const img = document.getElementById('stoolImage');
+  if (img) img.style.transform = `translate(${imgX}px, ${imgY}px) scale(${imgScale})`;
+}
+
+function imgClampPan() {
+  if (imgScale <= 1) { imgX = 0; imgY = 0; return; }
+  const img = document.getElementById('stoolImage');
+  if (!img) return;
+  const r = img.getBoundingClientRect();
+  const wrap = document.getElementById('imgWrap');
+  if (!wrap) return;
+  const wr = wrap.getBoundingClientRect();
+  const maxX = Math.max(0, (r.width - wr.width) / 2);
+  const maxY = Math.max(0, (r.height - wr.height) / 2);
+  imgX = Math.max(-maxX, Math.min(maxX, imgX));
+  imgY = Math.max(-maxY, Math.min(maxY, imgY));
+}
+
+(function initImgZoom() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const wrap = document.getElementById('imgWrap');
+    if (!wrap) return;
+
+    wrap.addEventListener('dblclick', e => {
+      e.preventDefault();
+      if (imgScale > 1) { imgZoomReset(); } else { imgScale = 3; imgX = 0; imgY = 0; }
+      imgApplyTransform();
+    });
+
+    wrap.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        // Double-tap detection
+        const now = Date.now();
+        if (now - imgLastTap < 300) {
+          e.preventDefault();
+          if (imgScale > 1) { imgZoomReset(); } else { imgScale = 3; imgX = 0; imgY = 0; }
+          imgApplyTransform();
+        }
+        imgLastTap = now;
+        // Pan start
+        imgPanStartX = e.touches[0].clientX;
+        imgPanStartY = e.touches[0].clientY;
+        imgPanStartImgX = imgX;
+        imgPanStartImgY = imgY;
+      }
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        imgPinchStartDist = Math.hypot(dx, dy);
+        imgPinchStartScale = imgScale;
+      }
+    }, { passive: false });
+
+    wrap.addEventListener('touchmove', e => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        imgScale = Math.max(1, Math.min(8, imgPinchStartScale * (dist / imgPinchStartDist)));
+        imgClampPan();
+        imgApplyTransform();
+      } else if (e.touches.length === 1 && imgScale > 1) {
+        e.preventDefault();
+        imgX = imgPanStartImgX + (e.touches[0].clientX - imgPanStartX);
+        imgY = imgPanStartImgY + (e.touches[0].clientY - imgPanStartY);
+        imgClampPan();
+        imgApplyTransform();
+      }
+    }, { passive: false });
+
+    wrap.addEventListener('touchend', () => {
+      if (imgScale <= 1) imgZoomReset();
+      imgApplyTransform();
+    });
+
+    // Mouse wheel zoom for desktop
+    wrap.addEventListener('wheel', e => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.8 : 1.25;
+      imgScale = Math.max(1, Math.min(8, imgScale * delta));
+      if (imgScale <= 1) { imgX = 0; imgY = 0; }
+      imgClampPan();
+      imgApplyTransform();
+    }, { passive: false });
+  });
+})();
 
 // --- Export ---
 function exportData() {
