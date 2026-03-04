@@ -218,7 +218,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:32</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:42</span></i>
   <div id="clock"></div>
 </header>
 
@@ -1337,24 +1337,29 @@ function scanLoop() {
 
   const dbg = document.getElementById('scanDebug');
 
+  // Try native BarcodeDetector on video element directly
   if (barcodeDetector && !scanBusy) {
     scanBusy = true;
-    barcodeDetector.detect(scanCanvas).then(codes => {
+    barcodeDetector.detect(video).then(codes => {
       scanBusy = false;
-      if (dbg && scanFrameCount % 30 === 0) dbg.textContent = `Frames: ${scanFrameCount} | Detector: native | Found: ${codes.length}`;
       if (codes.length > 0) {
-        if (dbg) dbg.textContent = `Erkannt: ${codes[0].rawValue.substring(0, 40)}...`;
+        if (dbg) dbg.textContent = `Native erkannt: ${codes[0].rawValue.substring(0, 40)}...`;
         handleScanData(codes[0].rawValue);
       }
-    }).catch(e => { scanBusy = false; if (dbg) dbg.textContent = `Fehler: ${e.message}`; });
-  } else if (!barcodeDetector) {
-    const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-    if (dbg && scanFrameCount % 30 === 0) dbg.textContent = `Frames: ${scanFrameCount} | Detector: jsQR | Found: ${code ? 'ja' : 'nein'}`;
-    if (code && code.data) {
-      if (dbg) dbg.textContent = `Erkannt: ${code.data.substring(0, 40)}...`;
-      handleScanData(code.data);
-    }
+    }).catch(() => { scanBusy = false; });
+  }
+
+  // Always also try jsQR as second detector
+  const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+
+  if (dbg && scanFrameCount % 30 === 0) {
+    dbg.textContent = `Frames: ${scanFrameCount} | native: ${barcodeDetector ? 'ja' : 'nein'} | jsQR: ${code ? 'ja' : 'nein'} | ${scanCanvas.width}x${scanCanvas.height}`;
+  }
+
+  if (code && code.data) {
+    if (dbg) dbg.textContent = `jsQR erkannt: ${code.data.substring(0, 40)}...`;
+    handleScanData(code.data);
   }
 
   if (scanStream) scanAnimFrame = requestAnimationFrame(scanLoop);
