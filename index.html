@@ -1271,6 +1271,7 @@ function startScan() {
       <video id="scanVideo" autoplay playsinline muted style="display:none"></video>
       <canvas id="scanCanvas" style="width:100%;max-width:350px;border-radius:12px"></canvas>
       <p class="scan-status" id="scanStatus">Kamera wird gestartet...</p>
+      <p class="scan-status" id="scanDebug" style="font-size:.7rem;color:var(--text2);margin-top:.3rem"></p>
     </div>
     <div class="modal-actions"><button class="btn-cancel" onclick="stopScan();closeModal()">Abbrechen</button></div>`;
 
@@ -1292,6 +1293,8 @@ function startScan() {
         scanCanvas.width = video.videoWidth;
         scanCanvas.height = video.videoHeight;
         document.getElementById('scanStatus').textContent = 'QR-Code vor die Kamera halten...';
+        const dbg = document.getElementById('scanDebug');
+        if (dbg) dbg.textContent = `Video: ${video.videoWidth}x${video.videoHeight} | Detector: ${barcodeDetector ? 'native' : 'jsQR'}`;
         scanLoop();
       });
     })
@@ -1320,6 +1323,8 @@ function handleScanData(data) {
   processScanResult(data);
 }
 
+let scanFrameCount = 0;
+
 function scanLoop() {
   const video = document.getElementById('scanVideo');
   if (!video || !scanStream || video.readyState < 2) {
@@ -1328,19 +1333,28 @@ function scanLoop() {
   }
 
   scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+  scanFrameCount++;
+
+  const dbg = document.getElementById('scanDebug');
 
   if (barcodeDetector && !scanBusy) {
-    // Native BarcodeDetector — much more reliable
     scanBusy = true;
     barcodeDetector.detect(scanCanvas).then(codes => {
       scanBusy = false;
-      if (codes.length > 0) handleScanData(codes[0].rawValue);
-    }).catch(() => { scanBusy = false; });
+      if (dbg && scanFrameCount % 30 === 0) dbg.textContent = `Frames: ${scanFrameCount} | Detector: native | Found: ${codes.length}`;
+      if (codes.length > 0) {
+        if (dbg) dbg.textContent = `Erkannt: ${codes[0].rawValue.substring(0, 40)}...`;
+        handleScanData(codes[0].rawValue);
+      }
+    }).catch(e => { scanBusy = false; if (dbg) dbg.textContent = `Fehler: ${e.message}`; });
   } else if (!barcodeDetector) {
-    // Fallback to jsQR
     const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
     const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-    if (code && code.data) handleScanData(code.data);
+    if (dbg && scanFrameCount % 30 === 0) dbg.textContent = `Frames: ${scanFrameCount} | Detector: jsQR | Found: ${code ? 'ja' : 'nein'}`;
+    if (code && code.data) {
+      if (dbg) dbg.textContent = `Erkannt: ${code.data.substring(0, 40)}...`;
+      handleScanData(code.data);
+    }
   }
 
   if (scanStream) scanAnimFrame = requestAnimationFrame(scanLoop);
