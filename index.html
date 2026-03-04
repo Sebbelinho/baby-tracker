@@ -1160,7 +1160,7 @@ function exportData() {
 }
 
 // --- QR Sync ---
-const QR_MAX_BYTES = 2200; // safe limit per QR code
+const QR_MAX_BYTES = 1000; // smaller chunks = less dense QR = easier to scan from camera
 
 function mergeEntries(local, remote) {
   const map = new Map(local.map(e => [e.id, e]));
@@ -1216,26 +1216,32 @@ function renderQRModal() {
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('open');
 
-  // Render QR code to canvas
+  // Render QR code to canvas (high-DPI aware for sharp scanning)
   setTimeout(() => {
     const typeNumber = 0; // auto-detect
-    const qr = qrcode(typeNumber, 'L');
+    const qr = qrcode(typeNumber, 'M');
     qr.addData(payload);
     qr.make();
     const canvas = document.getElementById('qrCanvas');
-    const size = 280;
+    const cssSize = 300;
+    const dpr = window.devicePixelRatio || 1;
+    const size = cssSize * dpr;
     const moduleCount = qr.getModuleCount();
-    const cellSize = size / moduleCount;
-    canvas.width = size;
-    canvas.height = size;
+    // Use integer cell size for pixel-perfect modules
+    const cellSize = Math.floor(size / moduleCount);
+    const totalSize = cellSize * moduleCount;
+    canvas.width = totalSize;
+    canvas.height = totalSize;
+    canvas.style.width = cssSize + 'px';
+    canvas.style.height = cssSize + 'px';
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, totalSize, totalSize);
     ctx.fillStyle = '#000';
     for (let row = 0; row < moduleCount; row++) {
       for (let col = 0; col < moduleCount; col++) {
         if (qr.isDark(row, col)) {
-          ctx.fillRect(col * cellSize, row * cellSize, cellSize + 0.5, cellSize + 0.5);
+          ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
         }
       }
     }
@@ -1307,7 +1313,12 @@ function scanLoop() {
   const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
 
   if (code && code.data) {
-    processScanResult(code.data);
+    if (!code.data.startsWith('BT:')) {
+      const status = document.getElementById('scanStatus');
+      if (status) status.textContent = 'QR-Code erkannt, aber kein Baby-Tracker-Code. Richtigen QR zeigen...';
+    } else {
+      processScanResult(code.data);
+    }
   }
 
   if (scanStream) scanAnimFrame = requestAnimationFrame(scanLoop);
