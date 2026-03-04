@@ -137,6 +137,7 @@
   .feed-side.last{color:var(--still);border-bottom:2px solid var(--still)}
   .feed-sep{color:var(--text2)}
   .feed-ago{color:var(--text2);font-size:.8rem;margin-left:auto}
+  .entry-side-order{font-size:.75rem;color:var(--text2);margin-top:2px}
 
   /* Stool color reference */
   .stool-ref-btn{width:100%;padding:.7rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.5rem;text-align:center}
@@ -231,6 +232,7 @@
         <span class="icon">🌡️</span>Temperatur
       </button>
     </div>
+    <div class="last-feed-summary" id="lastFeedSummary"></div>
     <div class="export-bar">
       <button class="export-btn" onclick="exportData()">📥 JSON</button>
       <button class="export-btn" onclick="showQR()">📤 QR teilen</button>
@@ -260,7 +262,6 @@
         <canvas id="miniTemperatur"></canvas>
       </div>
     </div>
-    <div class="last-feed-summary" id="lastFeedSummary"></div>
     <div class="entries" id="entries"></div>
   </div>
 </div>
@@ -433,7 +434,14 @@ function swGlobalTick() {
   const display = document.getElementById('swDisplay');
   if (display) display.textContent = swFormatTime(total);
   const segDisplay = document.getElementById('swSegDisplay');
-  if (segDisplay) segDisplay.textContent = swSide ? (swSide.charAt(0).toUpperCase() + swSide.slice(1) + ': ' + swFormatTime(swCurrentSegmentMs())) : '';
+  if (segDisplay && swSide) {
+    const totals = swGetSideTotals();
+    const parts = [];
+    if (totals.links > 0) parts.push('L: ' + swFormatTime(totals.links));
+    if (totals.rechts > 0) parts.push('R: ' + swFormatTime(totals.rechts));
+    if (totals.beide > 0) parts.push('Beide: ' + swFormatTime(totals.beide));
+    segDisplay.textContent = parts.join(' · ');
+  } else if (segDisplay) { segDisplay.textContent = ''; }
   // Switch reminder — only when stillen modal is open, based on CURRENT segment time
   if (swRunning && !switchReminderFired && document.getElementById('switchReminder')) {
     const interval = parseInt(localStorage.getItem('baby_tracker_switch_interval'));
@@ -592,6 +600,14 @@ function saveModal() {
       data.durationRechts = Math.round(totals.rechts / 60000);
       if (totals.beide > 0) data.durationBeide = Math.round(totals.beide / 60000);
       if (data.durationLinks > 0 && data.durationRechts > 0) data.side = 'beide';
+      // Store the actual order of sides used (deduplicate consecutive same-side segments)
+      const sideOrder = [];
+      swSegments.forEach(seg => {
+        if (sideOrder.length === 0 || sideOrder[sideOrder.length - 1] !== seg.side) {
+          sideOrder.push(seg.side);
+        }
+      });
+      if (sideOrder.length > 1) data.sideOrder = sideOrder;
     }
     // Clear stopwatch after saving
     clearSwitchReminder();
@@ -817,8 +833,9 @@ function renderLastFeedSummary() {
 
   // Determine which side was last (last segment = last side used)
   let lastSide = last.side;
-  if (last.durationLinks > 0 && last.durationRechts > 0) {
-    // Both sides used — "beide" with last side being rechts (switch goes L→R)
+  if (last.sideOrder && last.sideOrder.length > 0) {
+    lastSide = last.sideOrder[last.sideOrder.length - 1];
+  } else if (last.durationLinks > 0 && last.durationRechts > 0) {
     lastSide = 'rechts';
   }
 
@@ -841,7 +858,7 @@ function renderLastFeedSummary() {
     <div class="feed-card-title">🤱 Letzte Stillzeit</div>
     ${parts}
     <span class="feed-ago">${agoStr}</span>
-    <span class="feed-sep">→ Nächste Seite: <strong>${lastSide === 'links' ? 'Rechts' : 'Links'}</strong></span>
+    <span class="feed-sep">→ Nächste Seite: <strong>${lastSide === 'links' ? 'Links' : lastSide === 'rechts' ? 'Rechts' : 'Links'}</strong></span>
   </div>`;
 }
 
@@ -892,6 +909,10 @@ function renderEntries() {
           const sideMap = { links: 'Links', rechts: 'Rechts', beide: 'Beide Seiten' };
           detail = `${sideMap[e.side] || e.side}`;
           if (e.durationMin) detail += ` · ${e.durationMin} Min`;
+        }
+        if (e.side === 'beide' && e.sideOrder && e.sideOrder.length > 1) {
+          const orderMap = { links: 'L', rechts: 'R', beide: 'B' };
+          detail += `<div class="entry-side-order">Reihenfolge: ${e.sideOrder.map(s => orderMap[s] || s).join(' → ')}</div>`;
         }
       } else if (e.type === 'wickeln') {
         const dtMap = { nass: '💧 Nass', stuhl: '💩 Stuhl', beides: '💧💩 Beides' };
