@@ -261,6 +261,7 @@
   </div>
 </div>
 <input type="file" id="stoolFileInput" accept="image/*" style="display:none" onchange="handleStoolFile(this)">
+<input type="file" id="stoolCameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleStoolFile(this)">
 
 <!-- Modal -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
@@ -687,14 +688,37 @@ function openStoolRef() {
   if (img) {
     showStoolImage(img);
   } else {
-    pickStoolImage();
+    showStoolPickChoice();
   }
 }
 
-function pickStoolImage() {
+function showStoolPickChoice() {
+  const overlay = document.getElementById('stoolOverlay');
+  document.getElementById('stoolImage').src = '';
+  document.getElementById('stoolImage').style.display = 'none';
+  overlay.classList.add('open');
+  // Temporarily replace bar with pick options
+  const bar = overlay.querySelector('.img-overlay-bar');
+  bar.innerHTML = `
+    <button class="img-bar-change" onclick="pickStoolCamera()">📷 Foto machen</button>
+    <button class="img-bar-change" onclick="pickStoolGallery()">🖼️ Aus Galerie</button>
+    <button class="img-bar-close" onclick="closeStoolImage()">Abbrechen</button>`;
+}
+
+function pickStoolGallery() {
   const input = document.getElementById('stoolFileInput');
   input.value = '';
   input.click();
+}
+
+function pickStoolCamera() {
+  const input = document.getElementById('stoolCameraInput');
+  input.value = '';
+  input.click();
+}
+
+function pickStoolImage() {
+  showStoolPickChoice();
 }
 
 function handleStoolFile(input) {
@@ -729,8 +753,15 @@ function handleStoolFile(input) {
 }
 
 function showStoolImage(src) {
-  document.getElementById('stoolImage').src = src;
-  document.getElementById('stoolOverlay').classList.add('open');
+  const img = document.getElementById('stoolImage');
+  img.src = src;
+  img.style.display = '';
+  const overlay = document.getElementById('stoolOverlay');
+  overlay.classList.add('open');
+  const bar = overlay.querySelector('.img-overlay-bar');
+  bar.innerHTML = `
+    <button class="img-bar-change" onclick="showStoolPickChoice()">Bild ändern</button>
+    <button class="img-bar-close" onclick="closeStoolImage()">Schließen</button>`;
 }
 
 function closeStoolImage() {
