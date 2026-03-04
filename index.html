@@ -104,6 +104,9 @@
   .scan-error{color:var(--danger);font-weight:600}
 
   /* Dashboard */
+  .dashboard-toggle{display:flex;justify-content:center;gap:.4rem;padding:.75rem 1rem 0;max-width:500px;margin:0 auto}
+  .dash-tog{padding:.4rem 1rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text2);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s}
+  .dash-tog.active{border-color:var(--still);background:var(--still-bg);color:var(--still)}
   .dashboard{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;max-width:500px;margin:.5rem auto;padding:0 1rem}
   .mini-chart{background:var(--surface);border-radius:var(--radius);padding:.75rem;box-shadow:var(--shadow);cursor:pointer;transition:transform .15s}
   .mini-chart:active{transform:scale(.97)}
@@ -213,6 +216,10 @@
     </div>
   </div>
   <div class="page-right">
+    <div class="dashboard-toggle">
+      <button class="dash-tog active" id="togWeek" onclick="setChartRange('week')">7 Tage</button>
+      <button class="dash-tog" id="togMonth" onclick="setChartRange('month')">Monat</button>
+    </div>
     <div class="dashboard" id="dashboard">
       <div class="mini-chart" onclick="openChart('stillzeit')">
         <div class="mini-chart-title">Stillzeit</div>
@@ -871,26 +878,56 @@ function stopScan() {
 // --- Dashboard Charts ---
 const miniCharts = {};
 let fullChart = null;
+let chartRange = 'week'; // 'week' or 'month'
 
-function getCurrentMonthDays() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+function setChartRange(range) {
+  chartRange = range;
+  document.getElementById('togWeek').classList.toggle('active', range === 'week');
+  document.getElementById('togMonth').classList.toggle('active', range === 'month');
+  renderDashboard();
+}
+
+function getChartDays() {
+  if (chartRange === 'month') {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const days = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      days.push(new Date(year, month, d).toISOString().slice(0, 10));
+    }
+    return days;
+  }
   const days = [];
-  for (let d = 1; d <= daysInMonth; d++) {
-    days.push(new Date(year, month, d).toISOString().slice(0, 10));
+  for (let i = 6; i >= 0; i--) {
+    days.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
   }
   return days;
 }
 
 function dayLabel(iso) {
   const d = new Date(iso + 'T12:00');
-  return d.toLocaleDateString('de-DE', { day: 'numeric' });
+  return chartRange === 'month'
+    ? d.toLocaleDateString('de-DE', { day: 'numeric' })
+    : d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' });
 }
 
-function currentMonthTitle() {
-  return new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+function rangeTitle() {
+  if (chartRange === 'month') return new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  return 'Letzte 7 Tage';
+}
+
+function getDateFilter() {
+  if (chartRange === 'month') return new Date().toISOString().slice(0, 7);
+  const start = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
+  return { start };
+}
+
+function entryInRange(e) {
+  const f = getDateFilter();
+  if (typeof f === 'string') return e.timestamp.startsWith(f);
+  return e.timestamp.slice(0, 10) >= f.start;
 }
 
 function getChartColors() {
@@ -920,8 +957,8 @@ function chartDefaults(mini) {
 }
 
 function buildStillzeitData() {
-  const entries = loadEntries().filter(e => e.type === 'stillen' && e.durationMin);
-  const days = getCurrentMonthDays();
+  const entries = loadEntries().filter(e => e.type === 'stillen' && e.durationMin && entryInRange(e));
+  const days = getChartDays();
   const linksData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.side === 'links').reduce((s, e) => s + e.durationMin, 0));
   const rechtsData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.side === 'rechts').reduce((s, e) => s + e.durationMin, 0));
   const beideData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.side === 'beide').reduce((s, e) => s + e.durationMin, 0));
@@ -936,8 +973,7 @@ function buildStillzeitData() {
 }
 
 function buildStillpausenData() {
-  const monthPrefix = new Date().toISOString().slice(0, 7);
-  const entries = loadEntries().filter(e => e.type === 'stillen' && e.timestamp.startsWith(monthPrefix)).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const entries = loadEntries().filter(e => e.type === 'stillen' && entryInRange(e)).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   const labels = [];
   const data = [];
   for (let i = 1; i < entries.length; i++) {
@@ -955,8 +991,8 @@ function buildStillpausenData() {
 }
 
 function buildWickelData() {
-  const entries = loadEntries().filter(e => e.type === 'wickeln');
-  const days = getCurrentMonthDays();
+  const entries = loadEntries().filter(e => e.type === 'wickeln' && entryInRange(e));
+  const days = getChartDays();
   const nassData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.diaperType === 'nass').length);
   const stuhlData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.diaperType === 'stuhl').length);
   const beidesData = days.map(d => entries.filter(e => e.timestamp.slice(0, 10) === d && e.diaperType === 'beides').length);
@@ -971,8 +1007,7 @@ function buildWickelData() {
 }
 
 function buildTemperaturData() {
-  const monthPrefix = new Date().toISOString().slice(0, 7);
-  const entries = loadEntries().filter(e => e.tempValue && e.timestamp.startsWith(monthPrefix)).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const entries = loadEntries().filter(e => e.tempValue && entryInRange(e)).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   const labels = entries.map(e => {
     const d = new Date(e.timestamp);
     return d.toLocaleDateString('de-DE', { day: 'numeric' }) + '. ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -991,10 +1026,10 @@ function buildTemperaturData() {
 }
 
 const chartBuilders = {
-  stillzeit: { data: buildStillzeitData, type: 'bar', title: () => '🤱 Stillzeit — ' + currentMonthTitle(), opts: { scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: 'Minuten' } } } } },
-  stillpausen: { data: buildStillpausenData, type: 'line', title: () => '⏱ Stillpausen — ' + currentMonthTitle(), opts: { scales: { y: { title: { display: true, text: 'Stunden' } } } } },
-  wickel: { data: buildWickelData, type: 'bar', title: () => '👶 Wickeln — ' + currentMonthTitle(), opts: { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Anzahl' } } } } },
-  temperatur: { data: buildTemperaturData, type: 'line', title: () => '🌡️ Temperatur — ' + currentMonthTitle(), opts: { scales: { y: { min: 35, max: 42, title: { display: true, text: '°C' } } } } },
+  stillzeit: { data: buildStillzeitData, type: 'bar', title: () => '🤱 Stillzeit — ' + rangeTitle(), opts: { scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: 'Minuten' } } } } },
+  stillpausen: { data: buildStillpausenData, type: 'line', title: () => '⏱ Stillpausen — ' + rangeTitle(), opts: { scales: { y: { title: { display: true, text: 'Stunden' } } } } },
+  wickel: { data: buildWickelData, type: 'bar', title: () => '👶 Wickeln — ' + rangeTitle(), opts: { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Anzahl' } } } } },
+  temperatur: { data: buildTemperaturData, type: 'line', title: () => '🌡️ Temperatur — ' + rangeTitle(), opts: { scales: { y: { min: 35, max: 42, title: { display: true, text: '°C' } } } } },
 };
 
 function renderDashboard() {
