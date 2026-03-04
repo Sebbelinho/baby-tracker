@@ -128,6 +128,16 @@
   @keyframes reminderBlink{0%,100%{opacity:1}50%{opacity:.3}}
   .sw-switch-btn{margin-top:.5rem;padding:.5rem 1.2rem;border:none;border-radius:10px;background:#34c759;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer}
 
+  /* Last feed summary */
+  .last-feed-summary{max-width:500px;margin:.5rem auto;padding:0 1rem}
+  .last-feed-summary:empty{display:none}
+  .feed-card{background:var(--surface);border-radius:var(--radius);padding:.75rem 1rem;box-shadow:var(--shadow);display:flex;flex-wrap:wrap;gap:.4rem .75rem;align-items:center;font-size:.85rem}
+  .feed-card-title{font-weight:700;color:var(--still);width:100%;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
+  .feed-side{font-weight:600}
+  .feed-side.last{color:var(--still);border-bottom:2px solid var(--still)}
+  .feed-sep{color:var(--text2)}
+  .feed-ago{color:var(--text2);font-size:.8rem;margin-left:auto}
+
   /* Stool color reference */
   .stool-ref-btn{width:100%;padding:.7rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.5rem;text-align:center}
   .img-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;flex-direction:column;align-items:center;justify-content:center}
@@ -250,6 +260,7 @@
         <canvas id="miniTemperatur"></canvas>
       </div>
     </div>
+    <div class="last-feed-summary" id="lastFeedSummary"></div>
     <div class="entries" id="entries"></div>
   </div>
 </div>
@@ -792,7 +803,50 @@ function clearSwitchReminder() {
 
 
 // --- Render entries ---
+function renderLastFeedSummary() {
+  const el = document.getElementById('lastFeedSummary');
+  if (!el) return;
+  const entries = loadEntries();
+  const last = entries.find(e => e.type === 'stillen');
+  if (!last) { el.innerHTML = ''; return; }
+
+  // Per-side info
+  const linksMin = last.durationLinks || (last.side === 'links' ? last.durationMin : 0) || 0;
+  const rechtsMin = last.durationRechts || (last.side === 'rechts' ? last.durationMin : 0) || 0;
+  const beideMin = last.durationBeide || (last.side === 'beide' && !last.durationLinks ? last.durationMin : 0) || 0;
+
+  // Determine which side was last (last segment = last side used)
+  let lastSide = last.side;
+  if (last.durationLinks > 0 && last.durationRechts > 0) {
+    // Both sides used — "beide" with last side being rechts (switch goes L→R)
+    lastSide = 'rechts';
+  }
+
+  // Time ago
+  const agoMs = Date.now() - new Date(last.timestamp).getTime();
+  const agoH = Math.floor(agoMs / 3600000);
+  const agoM = Math.floor((agoMs % 3600000) / 60000);
+  let agoStr = '';
+  if (agoH > 0) agoStr = `vor ${agoH}h ${agoM}min`;
+  else agoStr = `vor ${agoM} min`;
+
+  let parts = '';
+  if (linksMin > 0) parts += `<span class="feed-side${lastSide === 'links' ? ' last' : ''}">L: ${linksMin} Min</span>`;
+  if (linksMin > 0 && rechtsMin > 0) parts += `<span class="feed-sep">·</span>`;
+  if (rechtsMin > 0) parts += `<span class="feed-side${lastSide === 'rechts' ? ' last' : ''}">R: ${rechtsMin} Min</span>`;
+  if (beideMin > 0) parts += `<span class="feed-side${lastSide === 'beide' ? ' last' : ''}">Beide: ${beideMin} Min</span>`;
+  if (!parts) parts = `<span class="feed-side last">${last.side ? last.side.charAt(0).toUpperCase() + last.side.slice(1) : '?'}: ${last.durationMin || 0} Min</span>`;
+
+  el.innerHTML = `<div class="feed-card">
+    <div class="feed-card-title">🤱 Letzte Stillzeit</div>
+    ${parts}
+    <span class="feed-ago">${agoStr}</span>
+    <span class="feed-sep">→ Nächste Seite: <strong>${lastSide === 'links' ? 'Rechts' : 'Links'}</strong></span>
+  </div>`;
+}
+
 function renderEntries() {
+  renderLastFeedSummary();
   const entries = loadEntries();
   const container = document.getElementById('entries');
   if (!entries.length) { container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:2rem">Noch keine Einträge</p>'; return; }
