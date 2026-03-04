@@ -121,6 +121,7 @@
 
   /* Stopwatch pause */
   .sw-pause{background:var(--danger);color:#fff}
+  .sw-indicator{font-size:.75rem;font-weight:700;font-variant-numeric:tabular-nums;animation:reminderBlink 1.5s ease-in-out infinite}
 
   /* Switch reminder */
   .switch-reminder{animation:reminderBlink 1s ease-in-out infinite;border:2px solid var(--temp)!important;border-radius:var(--radius);padding:.5rem;margin-top:.5rem;text-align:center;font-weight:600;color:var(--temp);font-size:.9rem}
@@ -209,8 +210,9 @@
 <div class="page-layout">
   <div class="page-left">
     <div class="actions">
-      <button class="action-btn btn-stillen" onclick="openModal('stillen')">
+      <button class="action-btn btn-stillen" id="btnStillen" onclick="openModal('stillen')">
         <span class="icon">🤱</span>Stillen
+        <span class="sw-indicator" id="swIndicator" style="display:none">⏱ <span id="swIndicatorTime">00:00</span></span>
       </button>
       <button class="action-btn btn-wickeln" onclick="openModal('wickeln')">
         <span class="icon">👶</span>Wickeln
@@ -319,12 +321,93 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+// --- Stopwatch State (persistent) ---
+const SW_KEY = 'baby_tracker_stopwatch';
+let stopwatchStart = null;
+let stopwatchElapsed = 0;
+let swRunning = false;
+let swPaused = false;
+let swSide = '';
+
+function swSaveState() {
+  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide };
+  localStorage.setItem(SW_KEY, JSON.stringify(state));
+}
+
+function swLoadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SW_KEY));
+    if (!s) return false;
+    stopwatchStart = s.start;
+    stopwatchElapsed = s.elapsed || 0;
+    swRunning = s.running || false;
+    swPaused = s.paused || false;
+    swSide = s.side || '';
+    return swRunning || swPaused;
+  } catch { return false; }
+}
+
+function swClearState() {
+  localStorage.removeItem(SW_KEY);
+  swRunning = false;
+  swPaused = false;
+  stopwatchElapsed = 0;
+  stopwatchStart = null;
+  swSide = '';
+}
+
+function swGetTotal() {
+  if (swRunning && stopwatchStart) return stopwatchElapsed + (Date.now() - stopwatchStart);
+  return stopwatchElapsed;
+}
+
+function swFormatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+
+// Global tick — runs even when modal is closed
+function swGlobalTick() {
+  const total = swGetTotal();
+  // Update indicator on button
+  const ind = document.getElementById('swIndicator');
+  const indTime = document.getElementById('swIndicatorTime');
+  if (ind && indTime) {
+    if (swRunning || swPaused) {
+      ind.style.display = '';
+      indTime.textContent = swFormatTime(total);
+    } else {
+      ind.style.display = 'none';
+    }
+  }
+  // Update modal display if open
+  const display = document.getElementById('swDisplay');
+  if (display) display.textContent = swFormatTime(total);
+  // Switch reminder
+  if (swRunning && !switchReminderFired) {
+    const interval = parseInt(localStorage.getItem('baby_tracker_switch_interval'));
+    if (interval && total >= interval * 60000) {
+      switchReminderFired = true;
+      startSwitchReminder();
+    }
+  }
+}
+
+// Start global ticker
+setInterval(swGlobalTick, 250);
+
+// Restore on page load
+if (swLoadState()) {
+  if (swRunning) {
+    // Was running — keep it going
+    switchReminderFired = false;
+  }
+  swGlobalTick();
+}
+
 // --- Modal ---
 let currentType = null;
 let editingId = null;
-let stopwatchInterval = null;
-let stopwatchStart = null;
-let stopwatchElapsed = 0;
 
 function openModal(type, existingEntry) {
   currentType = type;
@@ -343,16 +426,22 @@ function openModal(type, existingEntry) {
   html += `<label>Uhrzeit</label><input type="time" id="mTime" value="${timeStr}">`;
 
   if (type === 'stillen') {
-    const dur = existingEntry ? existingEntry.durationMin || '' : '';
-    const side = existingEntry ? existingEntry.side : '';
+    const hasActive = swRunning || swPaused;
+    const dur = existingEntry ? existingEntry.durationMin || '' : (hasActive ? Math.round(swGetTotal() / 60000) || '' : '');
+    const side = existingEntry ? existingEntry.side : (hasActive ? swSide : '');
+    const showStart = !hasActive ? '' : 'display:none';
+    const showPause = hasActive ? '' : 'display:none';
+    const showStop = hasActive ? '' : 'display:none';
+    const pauseLabel = (hasActive && swPaused) ? '▶' : '⏸';
+    const swTime = hasActive ? swFormatTime(swGetTotal()) : '00:00';
     html += `
       <label>Dauer (Minuten)</label>
       <div class="stopwatch">
         <input type="number" id="mDuration" min="0" max="120" placeholder="z.B. 15" value="${dur}" style="flex:1">
-        <button class="sw-btn sw-start" id="swBtn" onclick="swStart()">▶</button>
-        <button class="sw-btn sw-pause" id="swPauseBtn" onclick="swPause()" style="display:none">⏸</button>
-        <button class="sw-btn sw-stop" id="swStopBtn" onclick="swStop()" style="display:none">⏹</button>
-        <span class="stopwatch-display" id="swDisplay">00:00</span>
+        <button class="sw-btn sw-start" id="swBtn" onclick="swStart()" style="${showStart}">▶</button>
+        <button class="sw-btn sw-pause" id="swPauseBtn" onclick="${swPaused ? 'swResume()' : 'swPause()'}" style="${showPause}">${pauseLabel}</button>
+        <button class="sw-btn sw-stop" id="swStopBtn" onclick="swStop()" style="${showStop}">⏹</button>
+        <span class="stopwatch-display" id="swDisplay">${swTime}</span>
       </div>
       <div id="switchReminder"></div>
       <label>Wechsel-Intervall (Min, optional)</label>
@@ -392,12 +481,15 @@ function openModal(type, existingEntry) {
 
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('open');
-  stopwatchClear();
 }
 
 function closeModal() {
+  // Save side selection if stopwatch is active
+  if ((swRunning || swPaused) && currentType === 'stillen') {
+    const sideEl = document.getElementById('mSide');
+    if (sideEl) { swSide = sideEl.value; swSaveState(); }
+  }
   document.getElementById('modalOverlay').classList.remove('open');
-  stopwatchClear();
   currentType = null;
   editingId = null;
 }
@@ -432,6 +524,9 @@ function saveModal() {
     if (!side) { alert('Bitte Brustseite wählen'); return; }
     data.durationMin = isNaN(dur) ? 0 : dur;
     data.side = side;
+    // Clear stopwatch after saving
+    clearSwitchReminder();
+    swClearState();
   } else if (currentType === 'wickeln') {
     const dt = document.getElementById('mDiaperType').value;
     if (!dt) { alert('Bitte Art wählen'); return; }
@@ -456,12 +551,32 @@ function saveModal() {
 let switchReminderFired = false;
 let switchReminderInterval = null;
 
+function swUpdateModalUI() {
+  const btn = document.getElementById('swBtn');
+  const pauseBtn = document.getElementById('swPauseBtn');
+  const stopBtn = document.getElementById('swStopBtn');
+  if (!btn) return; // modal not open
+  if (swRunning || swPaused) {
+    btn.style.display = 'none';
+    pauseBtn.style.display = '';
+    stopBtn.style.display = '';
+    pauseBtn.textContent = swPaused ? '▶' : '⏸';
+    pauseBtn.onclick = swPaused ? swResume : swPause;
+  } else {
+    btn.style.display = '';
+    pauseBtn.style.display = 'none';
+    stopBtn.style.display = 'none';
+  }
+}
+
 function swStart() {
   stopwatchStart = Date.now();
-  stopwatchInterval = setInterval(swTick, 250);
-  document.getElementById('swBtn').style.display = 'none';
-  document.getElementById('swPauseBtn').style.display = '';
-  document.getElementById('swStopBtn').style.display = '';
+  stopwatchElapsed = 0;
+  swRunning = true;
+  swPaused = false;
+  // Save side
+  const sideEl = document.getElementById('mSide');
+  if (sideEl) swSide = sideEl.value;
   // Save switch interval
   const si = document.getElementById('mSwitchInterval');
   if (si) {
@@ -471,85 +586,63 @@ function swStart() {
   }
   switchReminderFired = false;
   clearSwitchReminder();
+  swSaveState();
+  swUpdateModalUI();
 }
 
 function swPause() {
-  if (stopwatchInterval) {
-    clearInterval(stopwatchInterval);
-    stopwatchInterval = null;
+  if (swRunning) {
     stopwatchElapsed += Date.now() - stopwatchStart;
-    document.getElementById('swPauseBtn').textContent = '▶';
-    document.getElementById('swPauseBtn').onclick = swResume;
+    swRunning = false;
+    swPaused = true;
+    swSaveState();
+    swUpdateModalUI();
   }
   clearSwitchReminder();
 }
 
 function swResume() {
   stopwatchStart = Date.now();
-  stopwatchInterval = setInterval(swTick, 250);
-  document.getElementById('swPauseBtn').textContent = '⏸';
-  document.getElementById('swPauseBtn').onclick = swPause;
+  swRunning = true;
+  swPaused = false;
+  swSaveState();
+  swUpdateModalUI();
 }
 
 function swStop() {
-  if (stopwatchInterval) {
-    clearInterval(stopwatchInterval);
-    stopwatchInterval = null;
+  if (swRunning) {
     stopwatchElapsed += Date.now() - stopwatchStart;
   }
-  document.getElementById('mDuration').value = Math.round(stopwatchElapsed / 60000);
-  document.getElementById('swBtn').style.display = '';
-  document.getElementById('swPauseBtn').style.display = 'none';
-  document.getElementById('swStopBtn').style.display = 'none';
-  document.getElementById('swPauseBtn').textContent = '⏸';
-  document.getElementById('swPauseBtn').onclick = swPause;
+  const dur = document.getElementById('mDuration');
+  if (dur) dur.value = Math.round(stopwatchElapsed / 60000);
   clearSwitchReminder();
-  stopwatchElapsed = 0;
-  switchReminderFired = false;
+  swClearState();
+  swUpdateModalUI();
 }
 
 function swSwitchBreast() {
   clearSwitchReminder();
   switchReminderFired = false;
-  // Reset timer for next breast
-  if (stopwatchInterval) {
-    clearInterval(stopwatchInterval);
-    stopwatchInterval = null;
+  if (swRunning) {
     stopwatchElapsed += Date.now() - stopwatchStart;
   }
-  document.getElementById('mDuration').value = Math.round(stopwatchElapsed / 60000);
+  const dur = document.getElementById('mDuration');
+  if (dur) dur.value = Math.round(stopwatchElapsed / 60000);
   // Toggle breast side
   const sideInput = document.getElementById('mSide');
   if (sideInput) {
     const btns = sideInput.parentElement.querySelectorAll('.toggle-btn');
     const newSide = sideInput.value === 'links' ? 'rechts' : 'links';
-    btns.forEach(b => {
-      b.classList.toggle('active', b.dataset.val === newSide);
-    });
+    btns.forEach(b => b.classList.toggle('active', b.dataset.val === newSide));
     sideInput.value = newSide;
+    swSide = newSide;
   }
-  // Restart timer fresh for new breast
+  // Restart fresh
   stopwatchElapsed = 0;
   stopwatchStart = Date.now();
-  stopwatchInterval = setInterval(swTick, 250);
-  const display = document.getElementById('swDisplay');
-  if (display) display.textContent = '00:00';
-}
-
-function swTick() {
-  const total = stopwatchElapsed + (Date.now() - stopwatchStart);
-  const s = Math.floor(total / 1000);
-  const display = document.getElementById('swDisplay');
-  if (display) display.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-
-  // Switch reminder
-  if (!switchReminderFired) {
-    const interval = parseInt(localStorage.getItem('baby_tracker_switch_interval'));
-    if (interval && total >= interval * 60000) {
-      switchReminderFired = true;
-      startSwitchReminder();
-    }
-  }
+  swRunning = true;
+  swPaused = false;
+  swSaveState();
 }
 
 function playBeep() {
@@ -592,14 +685,6 @@ function clearSwitchReminder() {
   if (rem) rem.innerHTML = '';
 }
 
-function stopwatchClear() {
-  if (stopwatchInterval) clearInterval(stopwatchInterval);
-  stopwatchInterval = null;
-  stopwatchStart = null;
-  stopwatchElapsed = 0;
-  switchReminderFired = false;
-  clearSwitchReminder();
-}
 
 // --- Render entries ---
 function renderEntries() {
