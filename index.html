@@ -218,7 +218,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:25</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 20:32</span></i>
   <div id="clock"></div>
 </header>
 
@@ -1304,6 +1304,22 @@ function startScan() {
     });
 }
 
+let barcodeDetector = null;
+let scanBusy = false;
+if ('BarcodeDetector' in window) {
+  barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+}
+
+function handleScanData(data) {
+  if (!data) return;
+  if (!data.startsWith('BT:')) {
+    const status = document.getElementById('scanStatus');
+    if (status) status.textContent = 'QR erkannt, aber kein Baby-Tracker-Code. Richtigen QR zeigen...';
+    return;
+  }
+  processScanResult(data);
+}
+
 function scanLoop() {
   const video = document.getElementById('scanVideo');
   if (!video || !scanStream || video.readyState < 2) {
@@ -1312,16 +1328,19 @@ function scanLoop() {
   }
 
   scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
-  const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
 
-  if (code && code.data) {
-    if (!code.data.startsWith('BT:')) {
-      const status = document.getElementById('scanStatus');
-      if (status) status.textContent = 'QR-Code erkannt, aber kein Baby-Tracker-Code. Richtigen QR zeigen...';
-    } else {
-      processScanResult(code.data);
-    }
+  if (barcodeDetector && !scanBusy) {
+    // Native BarcodeDetector — much more reliable
+    scanBusy = true;
+    barcodeDetector.detect(scanCanvas).then(codes => {
+      scanBusy = false;
+      if (codes.length > 0) handleScanData(codes[0].rawValue);
+    }).catch(() => { scanBusy = false; });
+  } else if (!barcodeDetector) {
+    // Fallback to jsQR
+    const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) handleScanData(code.data);
   }
 
   if (scanStream) scanAnimFrame = requestAnimationFrame(scanLoop);
