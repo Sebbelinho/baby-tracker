@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a1e" media="(prefers-color-scheme: dark)">
+<title>Baby Tracker</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#f5f5f7;--surface:#fff;--text:#1d1d1f;--text2:#6e6e73;
+    --still:#c084fc;--still-bg:#f3e8ff;
+    --wickel:#22d3ee;--wickel-bg:#e0f7fa;
+    --temp:#fb923c;--temp-bg:#fff7ed;
+    --danger:#ef4444;--radius:16px;--shadow:0 2px 12px rgba(0,0,0,.08);
+  }
+  @media(prefers-color-scheme:dark){
+    :root{
+      --bg:#1a1a1e;--surface:#2a2a2e;--text:#f5f5f7;--text2:#98989d;
+      --still-bg:#3b1f5e;--wickel-bg:#164e55;--temp-bg:#4a2c14;
+      --shadow:0 2px 12px rgba(0,0,0,.3);
+    }
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;padding-bottom:calc(2rem + env(safe-area-inset-bottom,0px));-webkit-tap-highlight-color:transparent}
+  header{text-align:center;padding:calc(1.5rem + env(safe-area-inset-top,0px)) 1rem .5rem;position:sticky;top:0;background:var(--bg);z-index:10}
+  header h1{font-size:1.4rem;font-weight:700}
+  #clock{font-size:2.2rem;font-weight:200;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .actions{display:flex;gap:.75rem;padding:1rem;max-width:500px;margin:0 auto}
+  .action-btn{flex:1;border:none;border-radius:var(--radius);padding:1.2rem .5rem;font-size:.95rem;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.4rem;transition:transform .15s,box-shadow .15s;box-shadow:var(--shadow)}
+  .action-btn:active{transform:scale(.95)}
+  .action-btn .icon{font-size:1.8rem}
+  .btn-stillen{background:var(--still-bg);color:var(--still)}
+  .btn-wickeln{background:var(--wickel-bg);color:var(--wickel)}
+  .btn-temp{background:var(--temp-bg);color:var(--temp)}
+
+  /* Modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:500px;padding:1.5rem;max-height:85dvh;overflow-y:auto;animation:slideUp .3s ease}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal h2{font-size:1.2rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+  .modal label{display:block;font-size:.85rem;font-weight:600;color:var(--text2);margin:1rem 0 .4rem;text-transform:uppercase;letter-spacing:.04em}
+  .modal input[type="time"],.modal input[type="number"],.modal textarea{width:100%;padding:.7rem;border:2px solid var(--bg);border-radius:10px;font-size:1rem;background:var(--bg);color:var(--text);font-family:inherit}
+  .modal input:focus,.modal textarea:focus{outline:none;border-color:var(--accent)}
+  .modal textarea{resize:vertical;min-height:60px}
+  .toggle-group{display:flex;gap:.5rem}
+  .toggle-btn{flex:1;padding:.65rem .5rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
+  .toggle-btn.active{border-color:var(--accent);background:var(--accent);color:#fff}
+  .modal-actions{display:flex;gap:.75rem;margin-top:1.5rem}
+  .modal-actions button{flex:1;padding:.8rem;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer}
+  .btn-cancel{background:var(--bg);color:var(--text)}
+  .btn-save{background:var(--accent);color:#fff}
+  .btn-save:disabled{opacity:.4;cursor:not-allowed}
+
+  /* Stopwatch */
+  .stopwatch{display:flex;align-items:center;gap:.75rem;margin-top:.4rem}
+  .stopwatch-display{font-size:1.6rem;font-variant-numeric:tabular-nums;font-weight:300;min-width:80px}
+  .sw-btn{width:44px;height:44px;border-radius:50%;border:none;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .sw-start{background:#34c759;color:#fff}
+  .sw-stop{background:var(--danger);color:#fff}
+
+  /* Entries */
+  .entries{max-width:500px;margin:1rem auto;padding:0 1rem}
+  .day-group{margin-bottom:1.5rem}
+  .day-header{font-size:.85rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;padding:.5rem 0;border-bottom:1px solid var(--bg);cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+  .day-header .chevron{transition:transform .2s}
+  .day-header.collapsed .chevron{transform:rotate(-90deg)}
+  .day-entries{overflow:hidden}
+  .day-entries.collapsed{display:none}
+  .entry{display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;margin:.4rem 0;border-radius:12px;background:var(--surface);box-shadow:var(--shadow);position:relative}
+  .entry-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+  .entry-icon.stillen{background:var(--still-bg);color:var(--still)}
+  .entry-icon.wickeln{background:var(--wickel-bg);color:var(--wickel)}
+  .entry-icon.temperatur{background:var(--temp-bg);color:var(--temp)}
+  .entry-body{flex:1;min-width:0}
+  .entry-time{font-size:.8rem;color:var(--text2)}
+  .entry-detail{font-size:.95rem;font-weight:500;margin-top:.15rem}
+  .entry-notes{font-size:.8rem;color:var(--text2);margin-top:.2rem;white-space:pre-wrap;word-break:break-word}
+  .entry-actions{display:flex;flex-direction:column;gap:.25rem;flex-shrink:0}
+  .entry-del{background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.1rem;padding:.25rem;border-radius:6px;transition:opacity .15s}
+  .temp-high{color:var(--danger)!important;font-weight:700}
+
+  /* Export & Sync bar */
+  .export-bar{text-align:center;padding:1rem;display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+  .export-btn{background:var(--surface);border:2px solid var(--bg);border-radius:10px;padding:.6rem 1.2rem;font-size:.9rem;font-weight:600;color:var(--text);cursor:pointer;box-shadow:var(--shadow)}
+
+  /* QR modal content */
+  .qr-container{display:flex;flex-direction:column;align-items:center;gap:1rem;padding:1rem 0}
+  .qr-container canvas{border-radius:12px;max-width:280px;width:100%;height:auto}
+  .qr-hint{font-size:.85rem;color:var(--text2);text-align:center}
+  .qr-pages{display:flex;align-items:center;gap:1rem;font-size:.9rem;font-weight:600}
+  .qr-pages button{width:40px;height:40px;border-radius:50%;border:2px solid var(--bg);background:var(--surface);color:var(--text);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .qr-pages button:disabled{opacity:.3;cursor:not-allowed}
+
+  /* Scan modal */
+  .scan-container{display:flex;flex-direction:column;align-items:center;gap:1rem}
+  .scan-container video{width:100%;max-width:350px;border-radius:12px;background:#000}
+  .scan-status{font-size:.9rem;color:var(--text2);text-align:center;min-height:1.5em}
+  .scan-success{color:#34c759;font-weight:600}
+  .scan-error{color:var(--danger);font-weight:600}
+
+  /* Edit indicator */
+  .editing-badge{font-size:.7rem;background:var(--accent);color:#fff;padding:2px 8px;border-radius:8px;margin-left:.5rem}
+
+  /* --- Device: Touch / Mobile (pointer:coarse = finger) --- */
+  @media(pointer:coarse){
+    .action-btn{padding:1.4rem .5rem;min-height:90px}
+    .action-btn .icon{font-size:2.2rem}
+    .toggle-btn{padding:.85rem .5rem;font-size:1rem;min-height:48px}
+    .modal-actions button{min-height:48px;font-size:1.05rem}
+    .entry-del{opacity:1;font-size:1.3rem;padding:.4rem}
+    .sw-btn{width:52px;height:52px;font-size:1.4rem}
+  }
+
+  /* --- Device: Mouse / Desktop (pointer:fine = mouse/trackpad) --- */
+  @media(pointer:fine){
+    .entry-del{opacity:0}
+    .entry:hover .entry-del{opacity:1}
+  }
+
+  /* --- Small phones (<400px) --- */
+  @media(max-width:399px){
+    header h1{font-size:1.2rem}
+    #clock{font-size:1.8rem}
+    .actions{gap:.5rem;padding:.75rem}
+    .action-btn{padding:1rem .4rem;font-size:.85rem}
+    .action-btn .icon{font-size:1.5rem}
+    .entries{padding:0 .75rem}
+  }
+
+  /* --- Tablet / small desktop (500px+) --- */
+  @media(min-width:500px){
+    .modal{border-radius:var(--radius);margin-bottom:2rem}
+    .modal-overlay{align-items:center}
+  }
+
+  /* --- Desktop (768px+) --- */
+  @media(min-width:768px){
+    .actions{max-width:600px;gap:1rem;padding:1.5rem}
+    .action-btn{padding:1.5rem 1rem;font-size:1.05rem;border-radius:20px}
+    .action-btn .icon{font-size:2rem}
+    .entries{max-width:600px}
+    .entry{padding:1rem;gap:1rem}
+    .entry-icon{width:48px;height:48px;font-size:1.4rem}
+    #clock{font-size:2.8rem}
+    .modal{max-width:550px}
+  }
+
+  /* --- Large desktop (1200px+) --- */
+  @media(min-width:1200px){
+    .page-layout{display:flex;max-width:1100px;margin:0 auto;gap:2rem;padding:0 2rem;align-items:flex-start}
+    .page-left{position:sticky;top:120px;flex:0 0 320px}
+    .page-right{flex:1;min-width:0}
+    .actions{flex-direction:column;max-width:none;padding:0}
+    .action-btn{flex-direction:row;justify-content:flex-start;padding:1.2rem 1.5rem;font-size:1.05rem;gap:.75rem}
+    .entries{max-width:none;padding:0}
+    .export-bar{padding:1.5rem 0}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Baby Tracker</h1>
+  <div id="clock"></div>
+</header>
+
+<div class="page-layout">
+  <div class="page-left">
+    <div class="actions">
+      <button class="action-btn btn-stillen" onclick="openModal('stillen')">
+        <span class="icon">🤱</span>Stillen
+      </button>
+      <button class="action-btn btn-wickeln" onclick="openModal('wickeln')">
+        <span class="icon">👶</span>Wickeln
+      </button>
+      <button class="action-btn btn-temp" onclick="openModal('temperatur')">
+        <span class="icon">🌡️</span>Temperatur
+      </button>
+    </div>
+    <div class="export-bar">
+      <button class="export-btn" onclick="exportData()">📥 JSON</button>
+      <button class="export-btn" onclick="showQR()">📤 QR teilen</button>
+      <button class="export-btn" onclick="startScan()">📷 QR scannen</button>
+    </div>
+  </div>
+  <div class="page-right">
+    <div class="entries" id="entries"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script src="qrcode.min.js"></script>
+<script src="lzstring.min.js"></script>
+<script src="jsqr.min.js"></script>
+<script>
+const STORAGE_KEY = 'baby_tracker_entries';
+
+// --- Data ---
+function loadEntries() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+function saveEntries(entries) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+function addEntry(entry) {
+  const entries = loadEntries();
+  entry.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  entries.push(entry);
+  entries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  saveEntries(entries);
+  renderEntries();
+}
+function updateEntry(id, data) {
+  const entries = loadEntries();
+  const idx = entries.findIndex(e => e.id === id);
+  if (idx >= 0) { Object.assign(entries[idx], data); saveEntries(entries); renderEntries(); }
+}
+function deleteEntry(id) {
+  if (!confirm('Eintrag löschen?')) return;
+  saveEntries(loadEntries().filter(e => e.id !== id));
+  renderEntries();
+}
+
+// --- Clock ---
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// --- Modal ---
+let currentType = null;
+let editingId = null;
+let stopwatchInterval = null;
+let stopwatchStart = null;
+let stopwatchElapsed = 0;
+
+function openModal(type, existingEntry) {
+  currentType = type;
+  editingId = existingEntry ? existingEntry.id : null;
+  const now = new Date();
+  const timeStr = existingEntry
+    ? new Date(existingEntry.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(/^(\d):/, '0$1:')
+    : now.toTimeString().slice(0, 5);
+
+  const accentMap = { stillen: 'var(--still)', wickeln: 'var(--wickel)', temperatur: 'var(--temp)' };
+  const iconMap = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
+  const titleMap = { stillen: 'Stillen', wickeln: 'Wickeln', temperatur: 'Temperatur' };
+  document.getElementById('modal').style.setProperty('--accent', accentMap[type]);
+
+  let html = `<h2>${iconMap[type]} ${titleMap[type]}${editingId ? '<span class="editing-badge">Bearbeiten</span>' : ''}</h2>`;
+  html += `<label>Uhrzeit</label><input type="time" id="mTime" value="${timeStr}">`;
+
+  if (type === 'stillen') {
+    const dur = existingEntry ? existingEntry.durationMin || '' : '';
+    const side = existingEntry ? existingEntry.side : '';
+    html += `
+      <label>Dauer (Minuten)</label>
+      <div class="stopwatch">
+        <input type="number" id="mDuration" min="0" max="120" placeholder="z.B. 15" value="${dur}" style="flex:1">
+        <button class="sw-btn sw-start" id="swBtn" onclick="toggleStopwatch()">▶</button>
+        <span class="stopwatch-display" id="swDisplay">00:00</span>
+      </div>
+      <label>Brustseite</label>
+      <div class="toggle-group">
+        <button class="toggle-btn${side==='links'?' active':''}" data-val="links" onclick="pickToggle(this,'mSide')">Links</button>
+        <button class="toggle-btn${side==='rechts'?' active':''}" data-val="rechts" onclick="pickToggle(this,'mSide')">Rechts</button>
+        <button class="toggle-btn${side==='beide'?' active':''}" data-val="beide" onclick="pickToggle(this,'mSide')">Beide</button>
+      </div>
+      <input type="hidden" id="mSide" value="${side}">`;
+  } else if (type === 'wickeln') {
+    const dt = existingEntry ? existingEntry.diaperType : '';
+    html += `
+      <label>Art</label>
+      <div class="toggle-group">
+        <button class="toggle-btn${dt==='nass'?' active':''}" data-val="nass" onclick="pickToggle(this,'mDiaperType')">💧 Nass</button>
+        <button class="toggle-btn${dt==='stuhl'?' active':''}" data-val="stuhl" onclick="pickToggle(this,'mDiaperType')">💩 Stuhl</button>
+        <button class="toggle-btn${dt==='beides'?' active':''}" data-val="beides" onclick="pickToggle(this,'mDiaperType')">💧💩 Beides</button>
+      </div>
+      <input type="hidden" id="mDiaperType" value="${dt}">`;
+  } else {
+    const tv = existingEntry ? existingEntry.tempValue : '';
+    html += `<label>Temperatur (°C)</label><input type="number" id="mTemp" min="34" max="42" step="0.1" placeholder="z.B. 37.2" value="${tv}">`;
+  }
+
+  const notes = existingEntry ? (existingEntry.notes || '') : '';
+  html += `<label>Notizen (optional)</label><textarea id="mNotes" placeholder="Anmerkungen...">${notes}</textarea>`;
+  html += `<div class="modal-actions">
+    <button class="btn-cancel" onclick="closeModal()">Abbrechen</button>
+    <button class="btn-save" onclick="saveModal()">${editingId ? 'Speichern' : 'Eintragen'}</button>
+  </div>`;
+
+  document.getElementById('modal').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('open');
+  stopwatchClear();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  stopwatchClear();
+  currentType = null;
+  editingId = null;
+}
+
+function pickToggle(btn, hiddenId) {
+  btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(hiddenId).value = btn.dataset.val;
+}
+
+function saveModal() {
+  const timeVal = document.getElementById('mTime').value;
+  const now = new Date();
+  const [h, m] = timeVal.split(':').map(Number);
+  const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+  // If editing, preserve original date
+  if (editingId) {
+    const entries = loadEntries();
+    const orig = entries.find(e => e.id === editingId);
+    if (orig) {
+      const origDate = new Date(orig.timestamp);
+      ts.setFullYear(origDate.getFullYear(), origDate.getMonth(), origDate.getDate());
+    }
+  }
+  const notes = document.getElementById('mNotes').value.trim() || undefined;
+
+  let data = { type: currentType, timestamp: ts.toISOString(), notes };
+
+  if (currentType === 'stillen') {
+    const dur = parseInt(document.getElementById('mDuration').value);
+    const side = document.getElementById('mSide').value;
+    if (!side) { alert('Bitte Brustseite wählen'); return; }
+    data.durationMin = isNaN(dur) ? 0 : dur;
+    data.side = side;
+  } else if (currentType === 'wickeln') {
+    const dt = document.getElementById('mDiaperType').value;
+    if (!dt) { alert('Bitte Art wählen'); return; }
+    data.diaperType = dt;
+  } else {
+    const tv = parseFloat(document.getElementById('mTemp').value);
+    if (isNaN(tv)) { alert('Bitte Temperatur eingeben'); return; }
+    data.tempValue = tv;
+  }
+
+  if (editingId) {
+    updateEntry(editingId, data);
+  } else {
+    addEntry(data);
+  }
+  closeModal();
+}
+
+// --- Stopwatch ---
+function toggleStopwatch() {
+  const btn = document.getElementById('swBtn');
+  if (stopwatchInterval) {
+    clearInterval(stopwatchInterval);
+    stopwatchInterval = null;
+    stopwatchElapsed += Date.now() - stopwatchStart;
+    btn.textContent = '▶';
+    btn.className = 'sw-btn sw-start';
+    document.getElementById('mDuration').value = Math.round(stopwatchElapsed / 60000);
+  } else {
+    stopwatchStart = Date.now();
+    btn.textContent = '⏹';
+    btn.className = 'sw-btn sw-stop';
+    stopwatchInterval = setInterval(() => {
+      const total = stopwatchElapsed + (Date.now() - stopwatchStart);
+      const s = Math.floor(total / 1000);
+      document.getElementById('swDisplay').textContent =
+        String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    }, 250);
+  }
+}
+function stopwatchClear() {
+  if (stopwatchInterval) clearInterval(stopwatchInterval);
+  stopwatchInterval = null;
+  stopwatchStart = null;
+  stopwatchElapsed = 0;
+}
+
+// --- Render entries ---
+function renderEntries() {
+  const entries = loadEntries();
+  const container = document.getElementById('entries');
+  if (!entries.length) { container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:2rem">Noch keine Einträge</p>'; return; }
+
+  // Group by day
+  const days = {};
+  entries.forEach(e => {
+    const d = new Date(e.timestamp);
+    const key = d.toISOString().slice(0, 10);
+    (days[key] = days[key] || []).push(e);
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const sortedDays = Object.keys(days).sort().reverse();
+
+  let html = '';
+  sortedDays.forEach((day, i) => {
+    let label = new Date(day + 'T00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (day === today) label = 'Heute — ' + label;
+    else if (day === yesterday) label = 'Gestern — ' + label;
+    const collapsed = i > 0 ? ' collapsed' : '';
+
+    html += `<div class="day-group">
+      <div class="day-header${collapsed}" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('collapsed')">
+        ${label} <span class="chevron">▼</span>
+      </div>
+      <div class="day-entries${collapsed}">`;
+
+    days[day].forEach(e => {
+      const time = new Date(e.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      let detail = '', iconClass = e.type;
+      const iconSymbols = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
+
+      if (e.type === 'stillen') {
+        const sideMap = { links: 'Links', rechts: 'Rechts', beide: 'Beide Seiten' };
+        detail = `${sideMap[e.side] || e.side}`;
+        if (e.durationMin) detail += ` · ${e.durationMin} Min`;
+      } else if (e.type === 'wickeln') {
+        const dtMap = { nass: '💧 Nass', stuhl: '💩 Stuhl', beides: '💧💩 Beides' };
+        detail = dtMap[e.diaperType] || e.diaperType;
+      } else {
+        const high = e.tempValue >= 38;
+        detail = `<span class="${high ? 'temp-high' : ''}">${e.tempValue} °C</span>`;
+      }
+
+      html += `<div class="entry">
+        <div class="entry-icon ${iconClass}">${iconSymbols[e.type]}</div>
+        <div class="entry-body">
+          <div class="entry-time">${time}</div>
+          <div class="entry-detail">${detail}</div>
+          ${e.notes ? `<div class="entry-notes">${escHtml(e.notes)}</div>` : ''}
+        </div>
+        <div class="entry-actions">
+          <button class="entry-del" title="Bearbeiten" onclick="editEntry('${e.id}')">✏️</button>
+          <button class="entry-del" title="Löschen" onclick="deleteEntry('${e.id}')">🗑️</button>
+        </div>
+      </div>`;
+    });
+
+    html += '</div></div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function editEntry(id) {
+  const entry = loadEntries().find(e => e.id === id);
+  if (entry) openModal(entry.type, entry);
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// --- Export ---
+function exportData() {
+  const data = loadEntries();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `baby_tracker_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// --- QR Sync ---
+const QR_MAX_BYTES = 2200; // safe limit per QR code
+
+function mergeEntries(local, remote) {
+  const map = new Map(local.map(e => [e.id, e]));
+  let added = 0;
+  for (const r of remote) {
+    if (!map.has(r.id)) { added++; }
+    map.set(r.id, r);
+  }
+  const merged = [...map.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return { merged, added };
+}
+
+function chunkDataForQR(entries) {
+  const json = JSON.stringify(entries);
+  const compressed = LZString.compressToEncodedURIComponent(json);
+  const chunks = [];
+  for (let i = 0; i < compressed.length; i += QR_MAX_BYTES) {
+    chunks.push(compressed.slice(i, i + QR_MAX_BYTES));
+  }
+  return chunks;
+}
+
+let qrChunks = [];
+let qrPage = 0;
+
+function showQR() {
+  const entries = loadEntries();
+  if (!entries.length) { alert('Keine Daten zum Teilen'); return; }
+  qrChunks = chunkDataForQR(entries);
+  qrPage = 0;
+  renderQRModal();
+}
+
+function renderQRModal() {
+  const total = qrChunks.length;
+  const payload = `BT:${qrPage + 1}/${total}:${qrChunks[qrPage]}`;
+
+  let html = `<h2>📤 QR-Code teilen</h2><div class="qr-container">`;
+  html += `<canvas id="qrCanvas"></canvas>`;
+  if (total > 1) {
+    html += `<div class="qr-pages">
+      <button onclick="qrPrev()" ${qrPage === 0 ? 'disabled' : ''}>◀</button>
+      <span>Seite ${qrPage + 1} von ${total}</span>
+      <button onclick="qrNext()" ${qrPage === total - 1 ? 'disabled' : ''}>▶</button>
+    </div>
+    <p class="qr-hint">Alle ${total} QR-Codes nacheinander scannen</p>`;
+  } else {
+    html += `<p class="qr-hint">Auf dem anderen Gerät scannen</p>`;
+  }
+  html += `</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Schließen</button></div>`;
+
+  document.getElementById('modal').style.setProperty('--accent', 'var(--still)');
+  document.getElementById('modal').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('open');
+
+  // Render QR code to canvas
+  setTimeout(() => {
+    const typeNumber = 0; // auto-detect
+    const qr = qrcode(typeNumber, 'L');
+    qr.addData(payload);
+    qr.make();
+    const canvas = document.getElementById('qrCanvas');
+    const size = 280;
+    const moduleCount = qr.getModuleCount();
+    const cellSize = size / moduleCount;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000';
+    for (let row = 0; row < moduleCount; row++) {
+      for (let col = 0; col < moduleCount; col++) {
+        if (qr.isDark(row, col)) {
+          ctx.fillRect(col * cellSize, row * cellSize, cellSize + 0.5, cellSize + 0.5);
+        }
+      }
+    }
+  }, 50);
+}
+
+function qrPrev() { if (qrPage > 0) { qrPage--; renderQRModal(); } }
+function qrNext() { if (qrPage < qrChunks.length - 1) { qrPage++; renderQRModal(); } }
+
+// --- QR Scanner (jsQR — works in all browsers) ---
+let scanStream = null;
+let scanAnimFrame = null;
+let scanCanvas = null;
+let scanCtx = null;
+let receivedChunks = {};
+let expectedTotal = 0;
+
+function startScan() {
+  receivedChunks = {};
+  expectedTotal = 0;
+
+  let html = `<h2>📷 QR-Code scannen</h2>
+    <div class="scan-container">
+      <video id="scanVideo" autoplay playsinline muted style="display:none"></video>
+      <canvas id="scanCanvas" style="width:100%;max-width:350px;border-radius:12px"></canvas>
+      <p class="scan-status" id="scanStatus">Kamera wird gestartet...</p>
+    </div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="stopScan();closeModal()">Abbrechen</button></div>`;
+
+  document.getElementById('modal').style.setProperty('--accent', 'var(--wickel)');
+  document.getElementById('modal').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('open');
+
+  scanCanvas = document.getElementById('scanCanvas');
+  scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(stream => {
+      scanStream = stream;
+      const video = document.getElementById('scanVideo');
+      if (!video) { stopScan(); return; }
+      video.srcObject = stream;
+      video.play();
+      video.addEventListener('loadedmetadata', () => {
+        scanCanvas.width = video.videoWidth;
+        scanCanvas.height = video.videoHeight;
+        document.getElementById('scanStatus').textContent = 'QR-Code vor die Kamera halten...';
+        scanLoop();
+      });
+    })
+    .catch(err => {
+      const status = document.getElementById('scanStatus');
+      if (status) {
+        status.className = 'scan-status scan-error';
+        status.textContent = 'Kamera-Zugriff verweigert: ' + err.message;
+      }
+    });
+}
+
+function scanLoop() {
+  const video = document.getElementById('scanVideo');
+  if (!video || !scanStream || video.readyState < 2) {
+    if (scanStream) scanAnimFrame = requestAnimationFrame(scanLoop);
+    return;
+  }
+
+  scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+  const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+
+  if (code && code.data) {
+    processScanResult(code.data);
+  }
+
+  if (scanStream) scanAnimFrame = requestAnimationFrame(scanLoop);
+}
+
+function processScanResult(raw) {
+  if (!raw.startsWith('BT:')) return;
+  const match = raw.match(/^BT:(\d+)\/(\d+):(.+)$/);
+  if (!match) return;
+
+  const page = parseInt(match[1]);
+  const total = parseInt(match[2]);
+  const data = match[3];
+  expectedTotal = total;
+  receivedChunks[page] = data;
+
+  const received = Object.keys(receivedChunks).length;
+  const status = document.getElementById('scanStatus');
+
+  if (received < total) {
+    status.className = 'scan-status';
+    status.textContent = `${received} von ${total} QR-Codes gescannt — nächsten zeigen...`;
+    return;
+  }
+
+  // All chunks received — merge
+  let compressed = '';
+  for (let i = 1; i <= total; i++) compressed += receivedChunks[i];
+
+  try {
+    const json = LZString.decompressFromEncodedURIComponent(compressed);
+    const remote = JSON.parse(json);
+    const local = loadEntries();
+    const { merged, added } = mergeEntries(local, remote);
+    saveEntries(merged);
+    renderEntries();
+
+    status.className = 'scan-status scan-success';
+    status.textContent = `Sync erfolgreich! ${added} neue Einträge hinzugefügt. Gesamt: ${merged.length}`;
+    stopScan();
+  } catch (e) {
+    status.className = 'scan-status scan-error';
+    status.textContent = 'Fehler beim Verarbeiten der Daten';
+  }
+}
+
+function stopScan() {
+  if (scanAnimFrame) cancelAnimationFrame(scanAnimFrame);
+  scanAnimFrame = null;
+  if (scanStream) {
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
+  }
+  scanCanvas = null;
+  scanCtx = null;
+}
+
+// Init
+renderEntries();
+</script>
+</body>
+</html>
