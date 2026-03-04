@@ -328,9 +328,11 @@ let stopwatchElapsed = 0;
 let swRunning = false;
 let swPaused = false;
 let swSide = '';
+let switchReminderFired = false;
+let switchReminderInterval = null;
 
 function swSaveState() {
-  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide };
+  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide, reminderFired: switchReminderFired };
   localStorage.setItem(SW_KEY, JSON.stringify(state));
 }
 
@@ -343,6 +345,7 @@ function swLoadState() {
     swRunning = s.running || false;
     swPaused = s.paused || false;
     swSide = s.side || '';
+    switchReminderFired = s.reminderFired || false;
     return swRunning || swPaused;
   } catch { return false; }
 }
@@ -383,8 +386,8 @@ function swGlobalTick() {
   // Update modal display if open
   const display = document.getElementById('swDisplay');
   if (display) display.textContent = swFormatTime(total);
-  // Switch reminder
-  if (swRunning && !switchReminderFired) {
+  // Switch reminder — only when stillen modal is open
+  if (swRunning && !switchReminderFired && document.getElementById('switchReminder')) {
     const interval = parseInt(localStorage.getItem('baby_tracker_switch_interval'));
     if (interval && total >= interval * 60000) {
       switchReminderFired = true;
@@ -548,9 +551,6 @@ function saveModal() {
 }
 
 // --- Stopwatch ---
-let switchReminderFired = false;
-let switchReminderInterval = null;
-
 function swUpdateModalUI() {
   const btn = document.getElementById('swBtn');
   const pauseBtn = document.getElementById('swPauseBtn');
