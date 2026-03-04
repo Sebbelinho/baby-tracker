@@ -218,7 +218,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 21:00</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 04.03.2026, 21:26</span></i>
   <div id="clock"></div>
 </header>
 
@@ -298,7 +298,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="lzstring.min.js"></script>
 <script src="jsqr.min.js"></script>
 <script>
@@ -1202,7 +1202,7 @@ function renderQRModal() {
   const payload = `BT:${qrPage + 1}/${total}:${qrChunks[qrPage]}`;
 
   let html = `<h2>📤 QR-Code teilen</h2><div class="qr-container">`;
-  html += `<canvas id="qrCanvas"></canvas>`;
+  html += `<div id="qrCanvas" style="display:inline-block"></div>`;
   if (total > 1) {
     html += `<div class="qr-pages">
       <button onclick="qrPrev()" ${qrPage === 0 ? 'disabled' : ''}>◀</button>
@@ -1219,17 +1219,16 @@ function renderQRModal() {
   document.getElementById('modal').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('open');
 
-  // Render QR code to canvas using qrcode library
+  // Render QR code using qrcodejs library
   setTimeout(() => {
-    const canvas = document.getElementById('qrCanvas');
-    QRCode.toCanvas(canvas, payload, {
-      width: 300 * (window.devicePixelRatio || 1),
-      margin: 2,
-      errorCorrectionLevel: 'M'
-    }, function(err) {
-      if (err) console.error('QR render error:', err);
-      canvas.style.width = '300px';
-      canvas.style.height = '300px';
+    const container = document.getElementById('qrCanvas');
+    new QRCode(container, {
+      text: payload,
+      width: 300,
+      height: 300,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
     });
   }, 50);
 }
