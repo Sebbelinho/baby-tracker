@@ -220,7 +220,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 05.03.2026, 13:08</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 05.03.2026, 13:15</span></i>
   <div id="clock"></div>
 </header>
 
@@ -704,6 +704,13 @@ function swStart() {
     const manualDur = parseInt(document.getElementById('mDuration').value);
     if (!isNaN(manualDur) && manualDur > 0) {
       swSegments.push({ side: swSide, ms: manualDur * 60000 });
+      // Adjust start time backwards by manual duration
+      const timeEl = document.getElementById('mTime');
+      if (timeEl) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - manualDur);
+        timeEl.value = now.toTimeString().slice(0, 5);
+      }
     }
   }
   stopwatchStart = Date.now();
