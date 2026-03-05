@@ -512,6 +512,7 @@ function openModal(type, existingEntry) {
         <button class="sw-btn sw-start" id="swBtn" onclick="swStart()" style="${showStart}">▶</button>
         <button class="sw-btn sw-pause" id="swPauseBtn" onclick="${swPaused ? 'swResume()' : 'swPause()'}" style="${showPause}">${pauseLabel}</button>
         <button class="sw-btn sw-stop" id="swStopBtn" onclick="swStop()" style="${showStop}">⏹</button>
+        <button class="sw-btn" id="swResetBtn" onclick="swResetCurrentSegment()" style="${showStop}" title="Aktuelle Seite zurücksetzen">↺</button>
         <span class="stopwatch-display" id="swDisplay">${swTime}</span>
       </div>
       <div id="swSegDisplay" style="font-size:.8rem;color:var(--text2);margin-top:.3rem;font-variant-numeric:tabular-nums"></div>
@@ -558,10 +559,10 @@ function openModal(type, existingEntry) {
 }
 
 function closeModal() {
-  // Save side selection if stopwatch is active
-  if ((swRunning || swPaused) && currentType === 'stillen') {
-    const sideEl = document.getElementById('mSide');
-    if (sideEl) { swSide = sideEl.value; swSaveState(); }
+  // Reset stopwatch when closing stillen modal
+  if (currentType === 'stillen') {
+    clearSwitchReminder();
+    swClearState();
   }
   document.getElementById('modalOverlay').classList.remove('open');
   currentType = null;
@@ -643,17 +644,20 @@ function swUpdateModalUI() {
   const btn = document.getElementById('swBtn');
   const pauseBtn = document.getElementById('swPauseBtn');
   const stopBtn = document.getElementById('swStopBtn');
+  const resetBtn = document.getElementById('swResetBtn');
   if (!btn) return; // modal not open
   if (swRunning || swPaused) {
     btn.style.display = 'none';
     pauseBtn.style.display = '';
     stopBtn.style.display = '';
+    if (resetBtn) resetBtn.style.display = '';
     pauseBtn.textContent = swPaused ? '▶' : '⏸';
     pauseBtn.onclick = swPaused ? swResume : swPause;
   } else {
     btn.style.display = '';
     pauseBtn.style.display = 'none';
     stopBtn.style.display = 'none';
+    if (resetBtn) resetBtn.style.display = 'none';
   }
   // Update side toggles to match current swSide
   const sideEl = document.getElementById('mSide');
@@ -722,6 +726,45 @@ function swResume() {
   clearSwitchReminder();
   swSaveState();
   swUpdateModalUI();
+}
+
+function swRestoreFromEntry(entry) {
+  // Reconstruct stopwatch state from a saved stillen entry so user can resume
+  swSegments = [];
+  if (entry.sideOrder && entry.sideOrder.length > 0) {
+    // Reconstruct segments from sideOrder and per-side totals
+    const sideTotals = { links: (entry.durationLinks || 0) * 60000, rechts: (entry.durationRechts || 0) * 60000, beide: (entry.durationBeide || 0) * 60000 };
+    const sideCount = {};
+    entry.sideOrder.forEach(s => { sideCount[s] = (sideCount[s] || 0) + 1; });
+    entry.sideOrder.forEach(s => {
+      const ms = Math.round(sideTotals[s] / sideCount[s]);
+      if (ms > 0) swSegments.push({ side: s, ms });
+    });
+  } else if (entry.durationLinks > 0 || entry.durationRechts > 0) {
+    if (entry.durationLinks > 0) swSegments.push({ side: 'links', ms: entry.durationLinks * 60000 });
+    if (entry.durationRechts > 0) swSegments.push({ side: 'rechts', ms: entry.durationRechts * 60000 });
+    if (entry.durationBeide > 0) swSegments.push({ side: 'beide', ms: entry.durationBeide * 60000 });
+  } else if (entry.durationMin > 0) {
+    swSegments.push({ side: entry.side || 'beide', ms: entry.durationMin * 60000 });
+  }
+  // Set to paused state on last used side
+  swSide = entry.sideOrder ? entry.sideOrder[entry.sideOrder.length - 1] : entry.side;
+  swRunning = false;
+  swPaused = true;
+  stopwatchStart = null;
+  stopwatchElapsed = 0;
+  swSaveState();
+}
+
+function swResetCurrentSegment() {
+  // Reset current segment timer but keep previously recorded segments
+  stopwatchElapsed = 0;
+  if (swRunning) {
+    stopwatchStart = Date.now();
+  }
+  switchReminderFired = false;
+  clearSwitchReminder();
+  swSaveState();
 }
 
 function swManualSwitch() {
@@ -954,7 +997,12 @@ function renderEntries() {
 
 function editEntry(id) {
   const entry = loadEntries().find(e => e.id === id);
-  if (entry) openModal(entry.type, entry);
+  if (!entry) return;
+  // For stillen entries: restore stopwatch state so user can resume live session
+  if (entry.type === 'stillen' && (entry.durationMin > 0 || entry.durationLinks > 0 || entry.durationRechts > 0)) {
+    swRestoreFromEntry(entry);
+  }
+  openModal(entry.type, entry);
 }
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
