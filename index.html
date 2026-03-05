@@ -60,11 +60,13 @@
   .btn-save:disabled{opacity:.4;cursor:not-allowed}
 
   /* Stopwatch */
-  .stopwatch{display:flex;align-items:center;gap:.75rem;margin-top:.4rem}
+  .stopwatch{display:flex;align-items:center;gap:.5rem;margin-top:.4rem}
   .stopwatch-display{font-size:1.6rem;font-variant-numeric:tabular-nums;font-weight:300;min-width:80px}
-  .sw-btn{width:44px;height:44px;border-radius:50%;border:none;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .sw-btn{width:32px;height:32px;border-radius:50%;border:none;font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
   .sw-start{background:#34c759;color:#fff}
+  .sw-pause{background:#ff9500;color:#fff}
   .sw-stop{background:var(--danger);color:#fff}
+  .sw-reset{background:var(--text2);color:#fff}
 
   /* Entries */
   .entries{max-width:500px;margin:1rem auto;padding:0 1rem}
@@ -123,7 +125,7 @@
   .chart-full .btn-cancel{width:100%;margin-top:1rem;padding:.7rem;border:none;border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem;font-weight:600;cursor:pointer}
 
   /* Stopwatch pause */
-  .sw-pause{background:var(--danger);color:#fff}
+  /* sw-pause defined above with sw-btn group */
   .sw-indicator{font-size:.75rem;font-weight:700;font-variant-numeric:tabular-nums;animation:reminderBlink 1.5s ease-in-out infinite}
 
   /* Switch reminder */
@@ -163,7 +165,7 @@
     .toggle-btn{padding:.85rem .5rem;font-size:1rem;min-height:48px}
     .modal-actions button{min-height:48px;font-size:1.05rem}
     .entry-del{opacity:1;font-size:1.3rem;padding:.4rem}
-    .sw-btn{width:52px;height:52px;font-size:1.4rem}
+    .sw-btn{width:36px;height:36px;font-size:.95rem}
   }
 
   /* --- Device: Mouse / Desktop (pointer:fine = mouse/trackpad) --- */
@@ -218,7 +220,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 05.03.2026, 12:00</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 05.03.2026, 13:02</span></i>
   <div id="clock"></div>
 </header>
 
@@ -510,9 +512,9 @@ function openModal(type, existingEntry) {
       <div class="stopwatch">
         <input type="number" id="mDuration" min="0" max="120" placeholder="z.B. 15" value="${dur}" style="flex:1">
         <button class="sw-btn sw-start" id="swBtn" onclick="swStart()" style="${showStart}">▶</button>
-        <button class="sw-btn sw-pause" id="swPauseBtn" onclick="${swPaused ? 'swResume()' : 'swPause()'}" style="${showPause}">${pauseLabel}</button>
-        <button class="sw-btn sw-stop" id="swStopBtn" onclick="swStop()" style="${showStop}">⏹</button>
-        <button class="sw-btn" id="swResetBtn" onclick="swResetCurrentSegment()" style="${showStop}" title="Aktuelle Seite zurücksetzen">↺</button>
+        <button class="sw-btn ${swPaused ? 'sw-start' : 'sw-pause'}" id="swPauseBtn" onclick="${swPaused ? 'swResume()' : 'swPause()'}" style="${showPause}">${pauseLabel}</button>
+        <button class="sw-btn sw-stop" id="swStopBtn" onclick="swStop()" style="${showStop}">■</button>
+        <button class="sw-btn sw-reset" id="swResetBtn" onclick="swResetCurrentSegment()" style="${showStop}" title="Aktuelle Seite zurücksetzen">↺</button>
         <span class="stopwatch-display" id="swDisplay">${swTime}</span>
       </div>
       <div id="swSegDisplay" style="font-size:.8rem;color:var(--text2);margin-top:.3rem;font-variant-numeric:tabular-nums"></div>
@@ -652,6 +654,7 @@ function swUpdateModalUI() {
     stopBtn.style.display = '';
     if (resetBtn) resetBtn.style.display = '';
     pauseBtn.textContent = swPaused ? '▶' : '⏸';
+    pauseBtn.className = 'sw-btn ' + (swPaused ? 'sw-start' : 'sw-pause');
     pauseBtn.onclick = swPaused ? swResume : swPause;
   } else {
     btn.style.display = '';
