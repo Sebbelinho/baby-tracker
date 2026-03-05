@@ -220,7 +220,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 05.03.2026, 13:05</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 05.03.2026, 13:07</span></i>
   <div id="clock"></div>
 </header>
 
@@ -699,11 +699,14 @@ function swStart() {
     if (!isNaN(v) && v > 0) localStorage.setItem('baby_tracker_switch_interval', v);
     else localStorage.removeItem('baby_tracker_switch_interval');
   }
-  // Adopt manual duration as initial segment if present
-  swSegments = [];
-  const manualDur = parseInt(document.getElementById('mDuration').value);
-  if (!isNaN(manualDur) && manualDur > 0) {
-    swSegments.push({ side: swSide, ms: manualDur * 60000 });
+  // Adopt manual duration as initial segment only if no live data exists yet
+  const hasLiveData = swSegments.length > 0 || swGetTotal() > 0;
+  if (!hasLiveData) {
+    swSegments = [];
+    const manualDur = parseInt(document.getElementById('mDuration').value);
+    if (!isNaN(manualDur) && manualDur > 0) {
+      swSegments.push({ side: swSide, ms: manualDur * 60000 });
+    }
   }
   stopwatchStart = Date.now();
   stopwatchElapsed = 0;
