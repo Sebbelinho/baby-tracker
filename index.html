@@ -220,7 +220,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 05.03.2026, 13:15</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 05.03.2026, 13:20</span></i>
   <div id="clock"></div>
 </header>
 
@@ -608,7 +608,11 @@ function saveModal() {
       data.durationLinks = Math.round(totals.links / 60000);
       data.durationRechts = Math.round(totals.rechts / 60000);
       if (totals.beide > 0) data.durationBeide = Math.round(totals.beide / 60000);
-      if (data.durationLinks > 0 && data.durationRechts > 0) data.side = 'beide';
+      // Store raw seconds for sub-minute display
+      if (totals.links > 0) data.secLinks = Math.round(totals.links / 1000);
+      if (totals.rechts > 0) data.secRechts = Math.round(totals.rechts / 1000);
+      if (totals.beide > 0) data.secBeide = Math.round(totals.beide / 1000);
+      if (totals.links > 0 && totals.rechts > 0) data.side = 'beide';
       // Store the actual order of sides used (deduplicate consecutive same-side segments)
       const sideOrder = [];
       swSegments.forEach(seg => {
@@ -912,11 +916,15 @@ function renderLastFeedSummary() {
   if (agoH > 0) agoStr = `vor ${agoH}h ${agoM}min`;
   else agoStr = `vor ${agoM} min`;
 
+  const fmtFeed = (min, sec) => min > 0 ? min + ' Min' : (sec > 0 ? '< 1 Min' : null);
   let parts = '';
-  if (linksMin > 0) parts += `<span class="feed-side${lastSide === 'links' ? ' last' : ''}">L: ${linksMin} Min</span>`;
-  if (linksMin > 0 && rechtsMin > 0) parts += `<span class="feed-sep">·</span>`;
-  if (rechtsMin > 0) parts += `<span class="feed-side${lastSide === 'rechts' ? ' last' : ''}">R: ${rechtsMin} Min</span>`;
-  if (beideMin > 0) parts += `<span class="feed-side${lastSide === 'beide' ? ' last' : ''}">Beide: ${beideMin} Min</span>`;
+  const lFeed = fmtFeed(linksMin, last.secLinks);
+  const rFeed = fmtFeed(rechtsMin, last.secRechts);
+  const bFeed = fmtFeed(beideMin, last.secBeide);
+  if (lFeed) parts += `<span class="feed-side${lastSide === 'links' ? ' last' : ''}">L: ${lFeed}</span>`;
+  if (lFeed && rFeed) parts += `<span class="feed-sep">·</span>`;
+  if (rFeed) parts += `<span class="feed-side${lastSide === 'rechts' ? ' last' : ''}">R: ${rFeed}</span>`;
+  if (bFeed) parts += `<span class="feed-side${lastSide === 'beide' ? ' last' : ''}">Beide: ${bFeed}</span>`;
   if (!parts) parts = `<span class="feed-side last">${last.side ? last.side.charAt(0).toUpperCase() + last.side.slice(1) : '?'}: ${last.durationMin || 0} Min</span>`;
 
   el.innerHTML = `<div class="feed-card">
@@ -964,10 +972,14 @@ function renderEntries() {
       const iconSymbols = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
 
       if (e.type === 'stillen') {
-        if (e.durationLinks > 0 || e.durationRechts > 0) {
+        const hasPerSide = e.durationLinks > 0 || e.durationRechts > 0 || e.secLinks > 0 || e.secRechts > 0;
+        if (hasPerSide) {
+          const fmtSide = (min, sec) => min > 0 ? min + ' Min' : (sec > 0 ? '< 1 Min' : null);
           const parts = [];
-          if (e.durationLinks > 0) parts.push('L: ' + e.durationLinks + ' Min');
-          if (e.durationRechts > 0) parts.push('R: ' + e.durationRechts + ' Min');
+          const lStr = fmtSide(e.durationLinks, e.secLinks);
+          const rStr = fmtSide(e.durationRechts, e.secRechts);
+          if (lStr) parts.push('L: ' + lStr);
+          if (rStr) parts.push('R: ' + rStr);
           detail = parts.join(' · ');
           if (e.durationMin) detail += ` (${e.durationMin} Min ges.)`;
         } else {
