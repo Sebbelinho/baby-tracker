@@ -127,6 +127,12 @@
   /* Stopwatch pause */
   /* sw-pause defined above with sw-btn group */
   .sw-indicator{font-size:.75rem;font-weight:700;font-variant-numeric:tabular-nums;animation:reminderBlink 1.5s ease-in-out infinite}
+  .side-row{display:flex;align-items:center;gap:.5rem;margin:.3rem 0}
+  .side-btn{flex:0 0 80px;padding:.55rem .5rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
+  .side-btn.active{border-color:var(--accent);background:var(--accent);color:#fff}
+  .side-btn:disabled{opacity:.5;cursor:not-allowed}
+  .side-input{flex:1;padding:.55rem;border:2px solid var(--bg);border-radius:10px;font-size:.9rem;background:var(--bg);color:var(--text);text-align:center;font-family:inherit;min-width:0}
+  .side-unit{font-size:.8rem;color:var(--text2);flex:0 0 auto}
 
   /* Switch reminder */
   .switch-reminder{animation:reminderBlink 1s ease-in-out infinite;border:2px solid var(--temp)!important;border-radius:var(--radius);padding:.5rem;margin-top:.5rem;text-align:center;font-weight:600;color:var(--temp);font-size:.9rem}
@@ -220,7 +226,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 22:19</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 22:40</span></i>
   <div id="clock"></div>
 </header>
 
@@ -452,15 +458,16 @@ function swGlobalTick() {
   // Update modal displays if open
   const display = document.getElementById('swDisplay');
   if (display) display.textContent = swFormatTime(total);
-  const segDisplay = document.getElementById('swSegDisplay');
-  if (segDisplay && swSide) {
+  // Update per-side input fields during live session
+  if ((swRunning || swPaused) && document.getElementById('mDurLinks')) {
     const totals = swGetSideTotals();
-    const parts = [];
-    if (totals.links > 0) parts.push('L: ' + swFormatTime(totals.links));
-    if (totals.rechts > 0) parts.push('R: ' + swFormatTime(totals.rechts));
-    if (totals.beide > 0) parts.push('Beide: ' + swFormatTime(totals.beide));
-    segDisplay.textContent = parts.join(' · ');
-  } else if (segDisplay) { segDisplay.textContent = ''; }
+    const durL = document.getElementById('mDurLinks');
+    const durR = document.getElementById('mDurRechts');
+    const durB = document.getElementById('mDurBeide');
+    if (durL) durL.value = totals.links > 0 ? Math.round(totals.links / 60000) : '';
+    if (durR) durR.value = totals.rechts > 0 ? Math.round(totals.rechts / 60000) : '';
+    if (durB) durB.value = totals.beide > 0 ? Math.round(totals.beide / 60000) : '';
+  }
   // Switch reminder — based on total time on current side (all segments + current)
   if (swRunning && !switchReminderFired) {
     const interval = parseInt(localStorage.getItem('baby_tracker_switch_interval'));
@@ -493,7 +500,7 @@ function openModal(type, existingEntry) {
   const now = new Date();
   const hasActive = (type === 'stillen') && (swRunning || swPaused);
   const timeStr = existingEntry
-    ? new Date(existingEntry.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(/^(\d):/, '0$1:')
+    ? new Date(existingEntry.timestamp).toTimeString().slice(0, 8)
     : (hasActive && swSessionStartTime) ? swSessionStartTime : now.toTimeString().slice(0, 5);
 
   const accentMap = { stillen: 'var(--still)', wickeln: 'var(--wickel)', temperatur: 'var(--temp)' };
@@ -502,48 +509,55 @@ function openModal(type, existingEntry) {
   document.getElementById('modal').style.setProperty('--accent', accentMap[type]);
 
   let html = `<h2>${iconMap[type]} ${titleMap[type]}${editingId ? '<span class="editing-badge">Bearbeiten</span>' : ''}</h2>`;
-  html += `<label>Uhrzeit</label><input type="time" id="mTime" value="${timeStr}">`;
+  html += `<label>Uhrzeit</label><input type="time" id="mTime" step="1" value="${timeStr}">`;
 
   if (type === 'stillen') {
-    const dur = existingEntry ? existingEntry.durationMin || '' : (hasActive ? Math.round(swGetTotal() / 60000) || '' : '');
     const side = existingEntry ? existingEntry.side : (hasActive ? swSide : '');
     const showStart = !hasActive ? '' : 'display:none';
     const showPause = hasActive ? '' : 'display:none';
     const showStop = hasActive ? '' : 'display:none';
     const pauseLabel = (hasActive && swPaused) ? '▶' : '⏸';
     const swTime = hasActive ? swFormatTime(swGetTotal()) : '00:00';
-    // Segment summary
-    let segSummary = '';
-    if (hasActive && swSegments.length > 0) {
+    // Per-side durations
+    let durL = '', durR = '', durB = '';
+    if (existingEntry) {
+      durL = existingEntry.durationLinks || (existingEntry.side === 'links' ? existingEntry.durationMin : 0) || '';
+      durR = existingEntry.durationRechts || (existingEntry.side === 'rechts' ? existingEntry.durationMin : 0) || '';
+      durB = existingEntry.durationBeide || (existingEntry.side === 'beide' && !existingEntry.durationLinks ? existingEntry.durationMin : 0) || '';
+    } else if (hasActive) {
       const totals = swGetSideTotals();
-      const parts = [];
-      if (totals.links > 0) parts.push('L: ' + Math.round(totals.links / 60000) + ' Min');
-      if (totals.rechts > 0) parts.push('R: ' + Math.round(totals.rechts / 60000) + ' Min');
-      if (totals.beide > 0) parts.push('Beide: ' + Math.round(totals.beide / 60000) + ' Min');
-      segSummary = parts.join(' · ');
+      durL = totals.links > 0 ? Math.round(totals.links / 60000) : '';
+      durR = totals.rechts > 0 ? Math.round(totals.rechts / 60000) : '';
+      durB = totals.beide > 0 ? Math.round(totals.beide / 60000) : '';
     }
     html += `
-      <label>Dauer (Minuten)</label>
-      <div class="stopwatch">
-        <input type="number" id="mDuration" min="0" max="120" placeholder="z.B. 15" value="${dur}" style="flex:1">
+      <label>Brustseite & Dauer</label>
+      <div class="side-row">
+        <button class="side-btn${side==='links'?' active':''}" data-side="links" onclick="pickSide('links')"${hasActive && swRunning ? ' disabled' : ''}>Links</button>
+        <input type="number" id="mDurLinks" class="side-input" min="0" max="120" placeholder="Min" value="${durL}">
+        <span class="side-unit">Min</span>
+      </div>
+      <div class="side-row">
+        <button class="side-btn${side==='rechts'?' active':''}" data-side="rechts" onclick="pickSide('rechts')"${hasActive && swRunning ? ' disabled' : ''}>Rechts</button>
+        <input type="number" id="mDurRechts" class="side-input" min="0" max="120" placeholder="Min" value="${durR}">
+        <span class="side-unit">Min</span>
+      </div>
+      <div class="side-row">
+        <button class="side-btn${side==='beide'?' active':''}" data-side="beide" onclick="pickSide('beide')"${hasActive && swRunning ? ' disabled' : ''}>Beide</button>
+        <input type="number" id="mDurBeide" class="side-input" min="0" max="120" placeholder="Min" value="${durB}">
+        <span class="side-unit">Min</span>
+      </div>
+      <div class="stopwatch" style="margin-top:.5rem">
         <button class="sw-btn sw-start" id="swBtn" onclick="swStart()" style="${showStart}">▶</button>
         <button class="sw-btn ${swPaused ? 'sw-start' : 'sw-pause'}" id="swPauseBtn" onclick="${swPaused ? 'swResume()' : 'swPause()'}" style="${showPause}">${pauseLabel}</button>
         <button class="sw-btn sw-stop" id="swStopBtn" onclick="swStop()" style="${showStop}">■</button>
         <button class="sw-btn sw-reset" id="swResetBtn" onclick="swResetCurrentSegment()" style="${showStop}" title="Aktuelle Seite zurücksetzen">↺</button>
         <span class="stopwatch-display" id="swDisplay">${swTime}</span>
+        <button class="toggle-btn" id="swSwitchBtn" onclick="swManualSwitch()" ${hasActive && swPaused ? '' : 'disabled'} style="background:var(--still-bg);color:var(--still);font-size:.85rem;padding:.4rem .8rem;${hasActive ? '' : 'display:none'}">🔄 Wechsel</button>
       </div>
-      <div id="swSegDisplay" style="font-size:.8rem;color:var(--text2);margin-top:.3rem;font-variant-numeric:tabular-nums"></div>
-      ${segSummary ? `<div style="font-size:.8rem;color:var(--still);margin-top:.2rem;font-weight:600">${segSummary}</div>` : ''}
       <div id="switchReminder">${(hasActive && switchReminderFired) ? '<div class="switch-reminder">🔄 Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">🔄 Brust wechseln</button></div>' : ''}</div>
       <label>Wechsel-Intervall (Min, optional)</label>
       <input type="number" id="mSwitchInterval" min="1" max="60" placeholder="z.B. 20" value="${localStorage.getItem('baby_tracker_switch_interval') || '20'}">
-      <label>Brustseite</label>
-      <div class="toggle-group">
-        <button class="toggle-btn${side==='links'?' active':''}" data-val="links" onclick="pickToggle(this,'mSide')">Links</button>
-        <button class="toggle-btn${side==='rechts'?' active':''}" data-val="rechts" onclick="pickToggle(this,'mSide')">Rechts</button>
-        <button class="toggle-btn${side==='beide'?' active':''}" data-val="beide" onclick="pickToggle(this,'mSide')">Beide</button>
-        <button class="toggle-btn" id="swSwitchBtn" onclick="swManualSwitch()" ${hasActive && swPaused ? '' : 'disabled'} style="background:var(--still-bg);color:var(--still);${hasActive ? '' : 'display:none'}">🔄 Wechsel</button>
-      </div>
       <input type="hidden" id="mSide" value="${side}">`;
   } else if (type === 'wickeln') {
     const dt = existingEntry ? existingEntry.diaperType : '';
@@ -594,8 +608,10 @@ function pickToggle(btn, hiddenId) {
 function saveModal() {
   const timeVal = document.getElementById('mTime').value;
   const now = new Date();
-  const [h, m] = timeVal.split(':').map(Number);
-  const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+  const timeParts = timeVal.split(':').map(Number);
+  const [h, m] = timeParts;
+  const sec = timeParts[2] || 0;
+  const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, sec);
   // If editing, preserve original date
   if (editingId) {
     const entries = loadEntries();
@@ -610,31 +626,38 @@ function saveModal() {
   let data = { type: currentType, timestamp: ts.toISOString(), notes };
 
   if (currentType === 'stillen') {
-    const dur = parseInt(document.getElementById('mDuration').value);
-    const side = document.getElementById('mSide').value;
-    if (!side) { alert('Bitte Brustseite wählen'); return; }
-    data.durationMin = isNaN(dur) ? 0 : dur;
+    const durLinks = parseInt(document.getElementById('mDurLinks').value) || 0;
+    const durRechts = parseInt(document.getElementById('mDurRechts').value) || 0;
+    const durBeide = parseInt(document.getElementById('mDurBeide').value) || 0;
+    const totalDur = durLinks + durRechts + durBeide;
+    // Determine side
+    let side = document.getElementById('mSide').value;
+    if (durLinks > 0 && durRechts > 0) side = 'beide';
+    else if (durLinks > 0 && !durRechts) side = 'links';
+    else if (durRechts > 0 && !durLinks) side = 'rechts';
+    else if (durBeide > 0) side = 'beide';
+    if (!side && totalDur === 0) { alert('Bitte Brustseite und Dauer angeben'); return; }
+    if (!side) side = 'beide';
+    data.durationMin = totalDur;
     data.side = side;
-    // Store per-side breakdown if segments exist
+    // Store per-side breakdown
+    if (durLinks > 0) data.durationLinks = durLinks;
+    if (durRechts > 0) data.durationRechts = durRechts;
+    if (durBeide > 0) data.durationBeide = durBeide;
+    // Store raw seconds and side order from live session segments
     if (swSegments.length > 0) {
-      const totals = { links: 0, rechts: 0, beide: 0 };
-      swSegments.forEach(seg => { if (totals.hasOwnProperty(seg.side)) totals[seg.side] += seg.ms; });
-      data.durationLinks = Math.round(totals.links / 60000);
-      data.durationRechts = Math.round(totals.rechts / 60000);
-      if (totals.beide > 0) data.durationBeide = Math.round(totals.beide / 60000);
-      // Store raw seconds for sub-minute display
-      if (totals.links > 0) data.secLinks = Math.round(totals.links / 1000);
-      if (totals.rechts > 0) data.secRechts = Math.round(totals.rechts / 1000);
-      if (totals.beide > 0) data.secBeide = Math.round(totals.beide / 1000);
-      if (totals.links > 0 && totals.rechts > 0) data.side = 'beide';
-      // Store the actual order of sides used (deduplicate consecutive same-side segments)
+      const segTotals = { links: 0, rechts: 0, beide: 0 };
+      swSegments.forEach(seg => { if (segTotals.hasOwnProperty(seg.side)) segTotals[seg.side] += seg.ms; });
+      if (segTotals.links > 0) data.secLinks = Math.round(segTotals.links / 1000);
+      if (segTotals.rechts > 0) data.secRechts = Math.round(segTotals.rechts / 1000);
+      if (segTotals.beide > 0) data.secBeide = Math.round(segTotals.beide / 1000);
       const sideOrder = [];
       swSegments.forEach(seg => {
         if (sideOrder.length === 0 || sideOrder[sideOrder.length - 1] !== seg.side) {
           sideOrder.push(seg.side);
         }
       });
-      if (sideOrder.length > 1) data.sideOrder = sideOrder;
+      if (sideOrder.length > 0) data.sideOrder = sideOrder;
     }
     // Clear stopwatch after saving
     clearSwitchReminder();
@@ -660,6 +683,13 @@ function saveModal() {
 }
 
 // --- Stopwatch ---
+function pickSide(side) {
+  document.getElementById('mSide').value = side;
+  document.querySelectorAll('.side-btn').forEach(b => b.classList.toggle('active', b.dataset.side === side));
+  // During paused or not started, update swSide for next start/resume
+  if (!swRunning) swSide = side;
+}
+
 function swUpdateModalUI() {
   const btn = document.getElementById('swBtn');
   const pauseBtn = document.getElementById('swPauseBtn');
@@ -680,14 +710,14 @@ function swUpdateModalUI() {
     stopBtn.style.display = 'none';
     if (resetBtn) resetBtn.style.display = 'none';
   }
-  // Update side toggles to match current swSide
+  // Update side buttons: highlight active, disable during running
+  document.querySelectorAll('.side-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.side === swSide);
+    b.disabled = swRunning;
+  });
   const sideEl = document.getElementById('mSide');
-  if (sideEl && (swRunning || swPaused)) {
-    sideEl.value = swSide;
-    const btns = sideEl.parentElement.querySelectorAll('.toggle-btn[data-val]');
-    btns.forEach(b => b.classList.toggle('active', b.dataset.val === swSide));
-  }
-  // Enable switch button only when paused
+  if (sideEl && (swRunning || swPaused)) sideEl.value = swSide;
+  // Switch button: visible during live, enabled only when paused
   const switchBtn = document.getElementById('swSwitchBtn');
   if (switchBtn) {
     switchBtn.disabled = !swPaused;
@@ -697,11 +727,8 @@ function swUpdateModalUI() {
 
 function swSwitchSideUI(newSide) {
   const sideInput = document.getElementById('mSide');
-  if (sideInput) {
-    const btns = sideInput.parentElement.querySelectorAll('.toggle-btn');
-    btns.forEach(b => b.classList.toggle('active', b.dataset.val === newSide));
-    sideInput.value = newSide;
-  }
+  if (sideInput) sideInput.value = newSide;
+  document.querySelectorAll('.side-btn').forEach(b => b.classList.toggle('active', b.dataset.side === newSide));
   swSide = newSide;
 }
 
@@ -719,7 +746,8 @@ function swStart() {
   }
   // Adopt manual duration as segment if current live timer is at 0:00
   if (swCurrentSegmentMs() === 0) {
-    const manualDur = parseInt(document.getElementById('mDuration').value);
+    const sideFieldId = 'mDur' + swSide.charAt(0).toUpperCase() + swSide.slice(1);
+    const manualDur = parseInt(document.getElementById(sideFieldId).value);
     if (!isNaN(manualDur) && manualDur > 0) {
       swSegments.push({ side: swSide, ms: manualDur * 60000 });
       // Adjust start time backwards by manual duration
@@ -833,10 +861,15 @@ function swStop() {
   }
   // Finalize current segment
   swFinalizeSegment();
-  // Set duration to total
-  const dur = document.getElementById('mDuration');
-  const totalMs = swSegments.reduce((s, seg) => s + seg.ms, 0);
-  if (dur) dur.value = Math.round(totalMs / 60000);
+  // Set per-side fields
+  const totals = { links: 0, rechts: 0, beide: 0 };
+  swSegments.forEach(seg => { if (totals.hasOwnProperty(seg.side)) totals[seg.side] += seg.ms; });
+  const durL = document.getElementById('mDurLinks');
+  const durR = document.getElementById('mDurRechts');
+  const durB = document.getElementById('mDurBeide');
+  if (durL) durL.value = totals.links > 0 ? Math.round(totals.links / 60000) : '';
+  if (durR) durR.value = totals.rechts > 0 ? Math.round(totals.rechts / 60000) : '';
+  if (durB) durB.value = totals.beide > 0 ? Math.round(totals.beide / 60000) : '';
   // Update side to reflect what was used
   if (swSegments.length > 0) {
     const sides = [...new Set(swSegments.map(s => s.side))];
@@ -1038,24 +1071,26 @@ function renderEntries() {
       const iconSymbols = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
 
       if (e.type === 'stillen') {
-        const hasPerSide = e.durationLinks > 0 || e.durationRechts > 0 || e.secLinks > 0 || e.secRechts > 0;
-        if (hasPerSide) {
-          const fmtSide = (min, sec) => min > 0 ? min + ' Min' : (sec > 0 ? '< 1 Min' : null);
-          const parts = [];
-          const lStr = fmtSide(e.durationLinks, e.secLinks);
-          const rStr = fmtSide(e.durationRechts, e.secRechts);
-          if (lStr) parts.push('L: ' + lStr);
-          if (rStr) parts.push('R: ' + rStr);
+        const fmtSide = (min, sec) => min > 0 ? min + ' Min' : (sec > 0 ? '< 1 Min' : null);
+        const lStr = fmtSide(e.durationLinks, e.secLinks);
+        const rStr = fmtSide(e.durationRechts, e.secRechts);
+        const bStr = fmtSide(e.durationBeide, e.secBeide);
+        const parts = [];
+        if (lStr) parts.push('L: ' + lStr);
+        if (rStr) parts.push('R: ' + rStr);
+        if (bStr) parts.push('Beide: ' + bStr);
+        if (parts.length > 0) {
           detail = parts.join(' · ');
-          if (e.durationMin) detail += ` (${e.durationMin} Min ges.)`;
+          if (parts.length > 1 && e.durationMin) detail += ` (${e.durationMin} Min ges.)`;
         } else {
-          const sideMap = { links: 'Links', rechts: 'Rechts', beide: 'Beide Seiten' };
+          const sideMap = { links: 'L', rechts: 'R', beide: 'Beide' };
           detail = `${sideMap[e.side] || e.side}`;
-          if (e.durationMin) detail += ` · ${e.durationMin} Min`;
+          if (e.durationMin) detail += `: ${e.durationMin} Min`;
         }
-        if (e.side === 'beide' && e.sideOrder && e.sideOrder.length > 1) {
-          const orderMap = { links: 'L', rechts: 'R', beide: 'B' };
-          detail += `<div class="entry-side-order">Reihenfolge: ${e.sideOrder.map(s => orderMap[s] || s).join(' → ')}</div>`;
+        // Side order
+        const orderMap = { links: 'L', rechts: 'R', beide: 'B' };
+        if (e.sideOrder && e.sideOrder.length > 1) {
+          detail += `<div class="entry-side-order">${e.sideOrder.map(s => orderMap[s] || s).join(' → ')}</div>`;
         }
       } else if (e.type === 'wickeln') {
         const dtMap = { nass: '💧 Nass', stuhl: '💩 Stuhl', beides: '💧💩 Beides' };
