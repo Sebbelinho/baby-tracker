@@ -227,7 +227,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 23:50</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 23:53</span></i>
   <div id="clock"></div>
 </header>
 
@@ -520,7 +520,9 @@ function openModal(type, existingEntry) {
 
   if (type === 'stillen') {
     const hasSegments = swSegments.length > 0;
-    const side = existingEntry ? existingEntry.side : ((hasActive || hasSegments) ? swSide : '');
+    const side = existingEntry
+      ? (existingEntry.sideOrder && existingEntry.sideOrder.length > 0 ? existingEntry.sideOrder[existingEntry.sideOrder.length - 1] : existingEntry.side)
+      : ((hasActive || hasSegments) ? swSide : '');
     const showStart = !hasActive ? '' : 'display:none';
     const showPause = hasActive ? '' : 'display:none';
     const showStop = hasActive ? '' : 'display:none';
