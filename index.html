@@ -53,6 +53,7 @@
   .toggle-group{display:flex;gap:.5rem}
   .toggle-btn{flex:1;padding:.65rem .5rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
   .toggle-btn.active{border-color:var(--accent);background:var(--accent);color:#fff}
+  .toggle-btn:disabled{opacity:.4;cursor:not-allowed}
   .modal-actions{display:flex;gap:.75rem;margin-top:1.5rem}
   .modal-actions button{flex:1;padding:.8rem;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer}
   .btn-cancel{background:var(--bg);color:var(--text)}
@@ -226,7 +227,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 22:40</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 23:29</span></i>
   <div id="clock"></div>
 </header>
 
@@ -458,15 +459,21 @@ function swGlobalTick() {
   // Update modal displays if open
   const display = document.getElementById('swDisplay');
   if (display) display.textContent = swFormatTime(total);
-  // Update per-side input fields during live session
+  // Update per-side fields and MM:SS displays during live session
   if ((swRunning || swPaused) && document.getElementById('mDurLinks')) {
     const totals = swGetSideTotals();
     const durL = document.getElementById('mDurLinks');
     const durR = document.getElementById('mDurRechts');
     const durB = document.getElementById('mDurBeide');
-    if (durL) durL.value = totals.links > 0 ? Math.round(totals.links / 60000) : '';
-    if (durR) durR.value = totals.rechts > 0 ? Math.round(totals.rechts / 60000) : '';
-    if (durB) durB.value = totals.beide > 0 ? Math.round(totals.beide / 60000) : '';
+    if (durL) durL.value = totals.links > 0 ? Math.round(totals.links / 60000) || '' : '';
+    if (durR) durR.value = totals.rechts > 0 ? Math.round(totals.rechts / 60000) || '' : '';
+    if (durB) durB.value = totals.beide > 0 ? Math.round(totals.beide / 60000) || '' : '';
+    const stL = document.getElementById('sideTimeLinks');
+    const stR = document.getElementById('sideTimeRechts');
+    const stB = document.getElementById('sideTimeBeide');
+    if (stL) stL.textContent = totals.links > 0 ? swFormatTime(totals.links) : 'Min';
+    if (stR) stR.textContent = totals.rechts > 0 ? swFormatTime(totals.rechts) : 'Min';
+    if (stB) stB.textContent = totals.beide > 0 ? swFormatTime(totals.beide) : 'Min';
   }
   // Switch reminder — based on total time on current side (all segments + current)
   if (swRunning && !switchReminderFired) {
@@ -501,7 +508,7 @@ function openModal(type, existingEntry) {
   const hasActive = (type === 'stillen') && (swRunning || swPaused);
   const timeStr = existingEntry
     ? new Date(existingEntry.timestamp).toTimeString().slice(0, 8)
-    : (hasActive && swSessionStartTime) ? swSessionStartTime : now.toTimeString().slice(0, 5);
+    : (hasActive && swSessionStartTime) ? swSessionStartTime : now.toTimeString().slice(0, 8);
 
   const accentMap = { stillen: 'var(--still)', wickeln: 'var(--wickel)', temperatur: 'var(--temp)' };
   const iconMap = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
@@ -518,34 +525,40 @@ function openModal(type, existingEntry) {
     const showStop = hasActive ? '' : 'display:none';
     const pauseLabel = (hasActive && swPaused) ? '▶' : '⏸';
     const swTime = hasActive ? swFormatTime(swGetTotal()) : '00:00';
-    // Per-side durations
+    // Per-side durations (ms for precise display, minutes for input fields)
+    let msL = 0, msR = 0, msB = 0;
     let durL = '', durR = '', durB = '';
     if (existingEntry) {
-      durL = existingEntry.durationLinks || (existingEntry.side === 'links' ? existingEntry.durationMin : 0) || '';
-      durR = existingEntry.durationRechts || (existingEntry.side === 'rechts' ? existingEntry.durationMin : 0) || '';
-      durB = existingEntry.durationBeide || (existingEntry.side === 'beide' && !existingEntry.durationLinks ? existingEntry.durationMin : 0) || '';
+      msL = existingEntry.secLinks ? existingEntry.secLinks * 1000 : (existingEntry.durationLinks || (existingEntry.side === 'links' ? existingEntry.durationMin : 0) || 0) * 60000;
+      msR = existingEntry.secRechts ? existingEntry.secRechts * 1000 : (existingEntry.durationRechts || (existingEntry.side === 'rechts' ? existingEntry.durationMin : 0) || 0) * 60000;
+      msB = existingEntry.secBeide ? existingEntry.secBeide * 1000 : (existingEntry.durationBeide || (existingEntry.side === 'beide' && !existingEntry.durationLinks ? existingEntry.durationMin : 0) || 0) * 60000;
+      durL = msL > 0 ? Math.round(msL / 60000) || '' : '';
+      durR = msR > 0 ? Math.round(msR / 60000) || '' : '';
+      durB = msB > 0 ? Math.round(msB / 60000) || '' : '';
     } else if (hasActive) {
       const totals = swGetSideTotals();
-      durL = totals.links > 0 ? Math.round(totals.links / 60000) : '';
-      durR = totals.rechts > 0 ? Math.round(totals.rechts / 60000) : '';
-      durB = totals.beide > 0 ? Math.round(totals.beide / 60000) : '';
+      msL = totals.links; msR = totals.rechts; msB = totals.beide;
+      durL = msL > 0 ? Math.round(msL / 60000) || '' : '';
+      durR = msR > 0 ? Math.round(msR / 60000) || '' : '';
+      durB = msB > 0 ? Math.round(msB / 60000) || '' : '';
     }
+    const fmtUnit = (ms) => ms > 0 ? swFormatTime(ms) : 'Min';
     html += `
       <label>Brustseite & Dauer</label>
       <div class="side-row">
         <button class="side-btn${side==='links'?' active':''}" data-side="links" onclick="pickSide('links')"${hasActive && swRunning ? ' disabled' : ''}>Links</button>
         <input type="number" id="mDurLinks" class="side-input" min="0" max="120" placeholder="Min" value="${durL}">
-        <span class="side-unit">Min</span>
+        <span class="side-unit" id="sideTimeLinks">${fmtUnit(msL)}</span>
       </div>
       <div class="side-row">
         <button class="side-btn${side==='rechts'?' active':''}" data-side="rechts" onclick="pickSide('rechts')"${hasActive && swRunning ? ' disabled' : ''}>Rechts</button>
         <input type="number" id="mDurRechts" class="side-input" min="0" max="120" placeholder="Min" value="${durR}">
-        <span class="side-unit">Min</span>
+        <span class="side-unit" id="sideTimeRechts">${fmtUnit(msR)}</span>
       </div>
       <div class="side-row">
         <button class="side-btn${side==='beide'?' active':''}" data-side="beide" onclick="pickSide('beide')"${hasActive && swRunning ? ' disabled' : ''}>Beide</button>
         <input type="number" id="mDurBeide" class="side-input" min="0" max="120" placeholder="Min" value="${durB}">
-        <span class="side-unit">Min</span>
+        <span class="side-unit" id="sideTimeBeide">${fmtUnit(msB)}</span>
       </div>
       <div class="stopwatch" style="margin-top:.5rem">
         <button class="sw-btn sw-start" id="swBtn" onclick="swStart()" style="${showStart}">▶</button>
@@ -581,7 +594,7 @@ function openModal(type, existingEntry) {
   const notes = existingEntry ? (existingEntry.notes || '') : '';
   html += `<label>Notizen (optional)</label><textarea id="mNotes" placeholder="Anmerkungen...">${notes}</textarea>`;
   html += `<div class="modal-actions">
-    <button class="btn-cancel" onclick="closeModal()">Abbrechen</button>
+    <button class="btn-cancel" onclick="cancelModal()">Abbrechen</button>
     <button class="btn-save" onclick="saveModal()">${editingId ? 'Speichern' : 'Eintragen'}</button>
   </div>`;
 
@@ -590,9 +603,20 @@ function openModal(type, existingEntry) {
 }
 
 function closeModal() {
-  // Only clear visual reminder, keep stopwatch running in background
+  // Soft close (overlay click): keep stopwatch running in background
   if (currentType === 'stillen') {
     clearSwitchReminder();
+  }
+  document.getElementById('modalOverlay').classList.remove('open');
+  currentType = null;
+  editingId = null;
+}
+
+function cancelModal() {
+  // Explicit cancel: discard any running/paused session
+  if (currentType === 'stillen') {
+    clearSwitchReminder();
+    swClearState();
   }
   document.getElementById('modalOverlay').classList.remove('open');
   currentType = null;
@@ -626,31 +650,31 @@ function saveModal() {
   let data = { type: currentType, timestamp: ts.toISOString(), notes };
 
   if (currentType === 'stillen') {
-    const durLinks = parseInt(document.getElementById('mDurLinks').value) || 0;
-    const durRechts = parseInt(document.getElementById('mDurRechts').value) || 0;
-    const durBeide = parseInt(document.getElementById('mDurBeide').value) || 0;
-    const totalDur = durLinks + durRechts + durBeide;
-    // Determine side
-    let side = document.getElementById('mSide').value;
-    if (durLinks > 0 && durRechts > 0) side = 'beide';
-    else if (durLinks > 0 && !durRechts) side = 'links';
-    else if (durRechts > 0 && !durLinks) side = 'rechts';
-    else if (durBeide > 0) side = 'beide';
-    if (!side && totalDur === 0) { alert('Bitte Brustseite und Dauer angeben'); return; }
-    if (!side) side = 'beide';
-    data.durationMin = totalDur;
-    data.side = side;
-    // Store per-side breakdown
-    if (durLinks > 0) data.durationLinks = durLinks;
-    if (durRechts > 0) data.durationRechts = durRechts;
-    if (durBeide > 0) data.durationBeide = durBeide;
-    // Store raw seconds and side order from live session segments
+    // Finalize current segment if session is still running or paused
+    if (swRunning || swPaused) {
+      if (swRunning) { stopwatchElapsed += Date.now() - stopwatchStart; }
+      swFinalizeSegment();
+      swRunning = false;
+      swPaused = false;
+    }
+    // When segments exist (live session), derive ALL data from segments (authoritative source)
     if (swSegments.length > 0) {
       const segTotals = { links: 0, rechts: 0, beide: 0 };
       swSegments.forEach(seg => { if (segTotals.hasOwnProperty(seg.side)) segTotals[seg.side] += seg.ms; });
-      if (segTotals.links > 0) data.secLinks = Math.round(segTotals.links / 1000);
-      if (segTotals.rechts > 0) data.secRechts = Math.round(segTotals.rechts / 1000);
-      if (segTotals.beide > 0) data.secBeide = Math.round(segTotals.beide / 1000);
+      data.durationLinks = Math.round(segTotals.links / 60000);
+      data.durationRechts = Math.round(segTotals.rechts / 60000);
+      if (segTotals.beide > 0) data.durationBeide = Math.round(segTotals.beide / 60000);
+      data.durationMin = data.durationLinks + data.durationRechts + (data.durationBeide || 0);
+      if (segTotals.links > 0) data.secLinks = Math.floor(segTotals.links / 1000);
+      if (segTotals.rechts > 0) data.secRechts = Math.floor(segTotals.rechts / 1000);
+      if (segTotals.beide > 0) data.secBeide = Math.floor(segTotals.beide / 1000);
+      // Determine side from actual usage
+      if (segTotals.links > 0 && segTotals.rechts > 0) data.side = 'beide';
+      else if (segTotals.links > 0) data.side = 'links';
+      else if (segTotals.rechts > 0) data.side = 'rechts';
+      else if (segTotals.beide > 0) data.side = 'beide';
+      else data.side = document.getElementById('mSide').value || 'beide';
+      // Side order
       const sideOrder = [];
       swSegments.forEach(seg => {
         if (sideOrder.length === 0 || sideOrder[sideOrder.length - 1] !== seg.side) {
@@ -658,6 +682,24 @@ function saveModal() {
         }
       });
       if (sideOrder.length > 0) data.sideOrder = sideOrder;
+    } else {
+      // Manual entry: read from per-side fields
+      const durLinks = parseInt(document.getElementById('mDurLinks').value) || 0;
+      const durRechts = parseInt(document.getElementById('mDurRechts').value) || 0;
+      const durBeide = parseInt(document.getElementById('mDurBeide').value) || 0;
+      const totalDur = durLinks + durRechts + durBeide;
+      let side = document.getElementById('mSide').value;
+      if (durLinks > 0 && durRechts > 0) side = 'beide';
+      else if (durLinks > 0 && !durRechts) side = 'links';
+      else if (durRechts > 0 && !durLinks) side = 'rechts';
+      else if (durBeide > 0) side = 'beide';
+      if (!side && totalDur === 0) { alert('Bitte Brustseite und Dauer angeben'); return; }
+      if (!side) side = 'beide';
+      data.durationMin = totalDur;
+      data.side = side;
+      if (durLinks > 0) data.durationLinks = durLinks;
+      if (durRechts > 0) data.durationRechts = durRechts;
+      if (durBeide > 0) data.durationBeide = durBeide;
     }
     // Clear stopwatch after saving
     clearSwitchReminder();
@@ -686,7 +728,10 @@ function saveModal() {
 function pickSide(side) {
   document.getElementById('mSide').value = side;
   document.querySelectorAll('.side-btn').forEach(b => b.classList.toggle('active', b.dataset.side === side));
-  // During paused or not started, update swSide for next start/resume
+  // During paused live session: finalize current segment before switching
+  if (swPaused && side !== swSide) {
+    swFinalizeSegment();
+  }
   if (!swRunning) swSide = side;
 }
 
@@ -755,7 +800,7 @@ function swStart() {
       if (timeEl) {
         const now = new Date();
         now.setMinutes(now.getMinutes() - manualDur);
-        timeEl.value = now.toTimeString().slice(0, 5);
+        timeEl.value = now.toTimeString().slice(0, 8);
       }
     }
   }
@@ -804,20 +849,23 @@ function swResume() {
 
 function swRestoreFromEntry(entry) {
   // Reconstruct stopwatch state from a saved stillen entry so user can resume
+  // Prefer secLinks/secRechts (exact seconds) over durationLinks/durationRechts (rounded minutes)
   swSegments = [];
+  const msLinks = entry.secLinks ? entry.secLinks * 1000 : (entry.durationLinks || 0) * 60000;
+  const msRechts = entry.secRechts ? entry.secRechts * 1000 : (entry.durationRechts || 0) * 60000;
+  const msBeide = entry.secBeide ? entry.secBeide * 1000 : (entry.durationBeide || 0) * 60000;
   if (entry.sideOrder && entry.sideOrder.length > 0) {
-    // Reconstruct segments from sideOrder and per-side totals
-    const sideTotals = { links: (entry.durationLinks || 0) * 60000, rechts: (entry.durationRechts || 0) * 60000, beide: (entry.durationBeide || 0) * 60000 };
+    const sideTotals = { links: msLinks, rechts: msRechts, beide: msBeide };
     const sideCount = {};
     entry.sideOrder.forEach(s => { sideCount[s] = (sideCount[s] || 0) + 1; });
     entry.sideOrder.forEach(s => {
       const ms = Math.round(sideTotals[s] / sideCount[s]);
       if (ms > 0) swSegments.push({ side: s, ms });
     });
-  } else if (entry.durationLinks > 0 || entry.durationRechts > 0) {
-    if (entry.durationLinks > 0) swSegments.push({ side: 'links', ms: entry.durationLinks * 60000 });
-    if (entry.durationRechts > 0) swSegments.push({ side: 'rechts', ms: entry.durationRechts * 60000 });
-    if (entry.durationBeide > 0) swSegments.push({ side: 'beide', ms: entry.durationBeide * 60000 });
+  } else if (msLinks > 0 || msRechts > 0) {
+    if (msLinks > 0) swSegments.push({ side: 'links', ms: msLinks });
+    if (msRechts > 0) swSegments.push({ side: 'rechts', ms: msRechts });
+    if (msBeide > 0) swSegments.push({ side: 'beide', ms: msBeide });
   } else if (entry.durationMin > 0) {
     swSegments.push({ side: entry.side || 'beide', ms: entry.durationMin * 60000 });
   }
@@ -867,9 +915,15 @@ function swStop() {
   const durL = document.getElementById('mDurLinks');
   const durR = document.getElementById('mDurRechts');
   const durB = document.getElementById('mDurBeide');
-  if (durL) durL.value = totals.links > 0 ? Math.round(totals.links / 60000) : '';
-  if (durR) durR.value = totals.rechts > 0 ? Math.round(totals.rechts / 60000) : '';
-  if (durB) durB.value = totals.beide > 0 ? Math.round(totals.beide / 60000) : '';
+  if (durL) durL.value = totals.links > 0 ? Math.round(totals.links / 60000) || '' : '';
+  if (durR) durR.value = totals.rechts > 0 ? Math.round(totals.rechts / 60000) || '' : '';
+  if (durB) durB.value = totals.beide > 0 ? Math.round(totals.beide / 60000) || '' : '';
+  const stL = document.getElementById('sideTimeLinks');
+  const stR = document.getElementById('sideTimeRechts');
+  const stB = document.getElementById('sideTimeBeide');
+  if (stL) stL.textContent = totals.links > 0 ? swFormatTime(totals.links) : 'Min';
+  if (stR) stR.textContent = totals.rechts > 0 ? swFormatTime(totals.rechts) : 'Min';
+  if (stB) stB.textContent = totals.beide > 0 ? swFormatTime(totals.beide) : 'Min';
   // Update side to reflect what was used
   if (swSegments.length > 0) {
     const sides = [...new Set(swSegments.map(s => s.side))];
@@ -1128,7 +1182,7 @@ function editEntry(id) {
   const entry = loadEntries().find(e => e.id === id);
   if (!entry) return;
   // For stillen entries: restore stopwatch state so user can resume live session
-  if (entry.type === 'stillen' && (entry.durationMin > 0 || entry.durationLinks > 0 || entry.durationRechts > 0)) {
+  if (entry.type === 'stillen' && (entry.durationMin > 0 || entry.durationLinks > 0 || entry.durationRechts > 0 || entry.secLinks > 0 || entry.secRechts > 0 || entry.secBeide > 0)) {
     swRestoreFromEntry(entry);
   }
   openModal(entry.type, entry);
@@ -1661,22 +1715,20 @@ function chartDefaults(mini) {
   };
 }
 
-function getEntryLinks(e) { return e.durationLinks || (e.side === 'links' ? e.durationMin : 0) || 0; }
-function getEntryRechts(e) { return e.durationRechts || (e.side === 'rechts' ? e.durationMin : 0) || 0; }
-function getEntryBeide(e) { return e.durationBeide || (e.side === 'beide' ? e.durationMin : 0) || 0; }
+function getEntryBeideRaw(e) { return e.durationBeide || (e.side === 'beide' && !e.durationLinks ? e.durationMin : 0) || 0; }
+function getEntryLinks(e) { return (e.durationLinks || (e.side === 'links' ? e.durationMin : 0) || 0) + getEntryBeideRaw(e) / 2; }
+function getEntryRechts(e) { return (e.durationRechts || (e.side === 'rechts' ? e.durationMin : 0) || 0) + getEntryBeideRaw(e) / 2; }
 
 function buildStillzeitData() {
   const entries = loadEntries().filter(e => e.type === 'stillen' && e.durationMin && entryInRange(e));
   const days = getChartDays();
   const linksData = days.map(d => entries.filter(e => localDateStr(e.timestamp) === d).reduce((s, e) => s + getEntryLinks(e), 0));
   const rechtsData = days.map(d => entries.filter(e => localDateStr(e.timestamp) === d).reduce((s, e) => s + getEntryRechts(e), 0));
-  const beideData = days.map(d => entries.filter(e => localDateStr(e.timestamp) === d).reduce((s, e) => s + getEntryBeide(e), 0));
   return {
     labels: days.map(dayLabel),
     datasets: [
       { label: 'Links', data: linksData, backgroundColor: '#c084fc' },
       { label: 'Rechts', data: rechtsData, backgroundColor: '#a855f7' },
-      { label: 'Beide', data: beideData, backgroundColor: '#7c3aed' },
     ]
   };
 }
@@ -1686,8 +1738,11 @@ function buildStillpausenData() {
   const labels = [];
   const data = [];
   for (let i = 1; i < entries.length; i++) {
-    const diff = (new Date(entries[i].timestamp) - new Date(entries[i - 1].timestamp)) / 3600000;
-    if (diff < 24) {
+    const prev = entries[i - 1];
+    const prevEnd = new Date(prev.timestamp).getTime() + (prev.durationMin || 0) * 60000;
+    const nextStart = new Date(entries[i].timestamp).getTime();
+    const diff = (nextStart - prevEnd) / 3600000;
+    if (diff >= 0 && diff < 24) {
       const d = new Date(entries[i].timestamp);
       labels.push(d.toLocaleDateString('de-DE', { day: 'numeric' }) + '. ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
       data.push(Math.round(diff * 10) / 10);
