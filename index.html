@@ -227,7 +227,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 23:29</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 23:42</span></i>
   <div id="clock"></div>
 </header>
 
@@ -519,12 +519,13 @@ function openModal(type, existingEntry) {
   html += `<label>Uhrzeit</label><input type="time" id="mTime" step="1" value="${timeStr}">`;
 
   if (type === 'stillen') {
-    const side = existingEntry ? existingEntry.side : (hasActive ? swSide : '');
+    const hasSegments = swSegments.length > 0;
+    const side = existingEntry ? existingEntry.side : ((hasActive || hasSegments) ? swSide : '');
     const showStart = !hasActive ? '' : 'display:none';
     const showPause = hasActive ? '' : 'display:none';
     const showStop = hasActive ? '' : 'display:none';
     const pauseLabel = (hasActive && swPaused) ? '▶' : '⏸';
-    const swTime = hasActive ? swFormatTime(swGetTotal()) : '00:00';
+    const swTime = (hasActive || hasSegments) ? swFormatTime(swGetTotal()) : '00:00';
     // Per-side durations (ms for precise display, minutes for input fields)
     let msL = 0, msR = 0, msB = 0;
     let durL = '', durR = '', durB = '';
@@ -535,7 +536,7 @@ function openModal(type, existingEntry) {
       durL = msL > 0 ? Math.round(msL / 60000) || '' : '';
       durR = msR > 0 ? Math.round(msR / 60000) || '' : '';
       durB = msB > 0 ? Math.round(msB / 60000) || '' : '';
-    } else if (hasActive) {
+    } else if (hasActive || swSegments.length > 0) {
       const totals = swGetSideTotals();
       msL = totals.links; msR = totals.rechts; msB = totals.beide;
       durL = msL > 0 ? Math.round(msL / 60000) || '' : '';
@@ -652,9 +653,8 @@ function saveModal() {
   if (currentType === 'stillen') {
     // Finalize current segment if session is still running or paused
     if (swRunning || swPaused) {
-      if (swRunning) { stopwatchElapsed += Date.now() - stopwatchStart; }
+      if (swRunning) { stopwatchElapsed += Date.now() - stopwatchStart; stopwatchStart = null; swRunning = false; }
       swFinalizeSegment();
-      swRunning = false;
       swPaused = false;
     }
     // When segments exist (live session), derive ALL data from segments (authoritative source)
@@ -906,6 +906,8 @@ function swManualSwitch() {
 function swStop() {
   if (swRunning) {
     stopwatchElapsed += Date.now() - stopwatchStart;
+    stopwatchStart = null;
+    swRunning = false;
   }
   // Finalize current segment
   swFinalizeSegment();
@@ -1715,9 +1717,19 @@ function chartDefaults(mini) {
   };
 }
 
-function getEntryBeideRaw(e) { return e.durationBeide || (e.side === 'beide' && !e.durationLinks ? e.durationMin : 0) || 0; }
-function getEntryLinks(e) { return (e.durationLinks || (e.side === 'links' ? e.durationMin : 0) || 0) + getEntryBeideRaw(e) / 2; }
-function getEntryRechts(e) { return (e.durationRechts || (e.side === 'rechts' ? e.durationMin : 0) || 0) + getEntryBeideRaw(e) / 2; }
+// Get per-side minutes (prefer exact seconds, fall back to rounded minutes)
+function getEntryBeideRaw(e) {
+  if (e.secBeide) return e.secBeide / 60;
+  return e.durationBeide || (e.side === 'beide' && !e.durationLinks && !e.secLinks ? e.durationMin : 0) || 0;
+}
+function getEntryLinks(e) {
+  const own = e.secLinks ? e.secLinks / 60 : (e.durationLinks || (e.side === 'links' ? e.durationMin : 0) || 0);
+  return own + getEntryBeideRaw(e) / 2;
+}
+function getEntryRechts(e) {
+  const own = e.secRechts ? e.secRechts / 60 : (e.durationRechts || (e.side === 'rechts' ? e.durationMin : 0) || 0);
+  return own + getEntryBeideRaw(e) / 2;
+}
 
 function buildStillzeitData() {
   const entries = loadEntries().filter(e => e.type === 'stillen' && e.durationMin && entryInRange(e));
