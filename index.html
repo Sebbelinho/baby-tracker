@@ -227,7 +227,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 23:42</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 23:50</span></i>
   <div id="clock"></div>
 </header>
 
@@ -1064,7 +1064,8 @@ function renderLastFeedSummary() {
   }
 
   // Time ago
-  const agoMs = Date.now() - new Date(last.timestamp).getTime();
+  const endTime = new Date(last.timestamp).getTime() + (last.durationMin || 0) * 60000;
+  const agoMs = Date.now() - endTime;
   const agoH = Math.floor(agoMs / 3600000);
   const agoM = Math.floor((agoMs % 3600000) / 60000);
   let agoStr = '';
