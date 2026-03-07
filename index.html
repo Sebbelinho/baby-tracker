@@ -227,7 +227,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 06.03.2026, 23:53</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 07:23</span></i>
   <div id="clock"></div>
 </header>
 
@@ -363,12 +363,13 @@ let swPaused = false;
 let swSide = '';              // current side being timed
 let swSegments = [];          // [{side:'links', ms:123456}, ...]
 let switchReminderFired = false;
+let switchReminderDismissed = false;  // true if reminder was acknowledged without switching
 let switchReminderInterval = null;
 let switchAlarmTimeout = null;
 let swSessionStartTime = null;  // stored time string HH:MM when session began
 
 function swSaveState() {
-  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide, segments: swSegments, reminderFired: switchReminderFired, sessionStartTime: swSessionStartTime };
+  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide, segments: swSegments, reminderFired: switchReminderFired, reminderDismissed: switchReminderDismissed, sessionStartTime: swSessionStartTime };
   localStorage.setItem(SW_KEY, JSON.stringify(state));
 }
 
@@ -383,6 +384,7 @@ function swLoadState() {
     swSide = s.side || '';
     swSegments = s.segments || [];
     switchReminderFired = s.reminderFired || false;
+    switchReminderDismissed = s.reminderDismissed || false;
     swSessionStartTime = s.sessionStartTime || null;
     return swRunning || swPaused;
   } catch { return false; }
@@ -397,6 +399,7 @@ function swClearState() {
   swSide = '';
   swSegments = [];
   swSessionStartTime = null;
+  switchReminderDismissed = false;
   if (switchAlarmTimeout) { clearTimeout(switchAlarmTimeout); switchAlarmTimeout = null; }
 }
 
@@ -456,9 +459,9 @@ function swGlobalTick() {
       ind.style.display = 'none';
     }
   }
-  // Update modal displays if open
+  // Update modal displays if open (only during active live session)
   const display = document.getElementById('swDisplay');
-  if (display) display.textContent = swFormatTime(total);
+  if (display && (swRunning || swPaused)) display.textContent = swFormatTime(total);
   // Update per-side fields and MM:SS displays during live session
   if ((swRunning || swPaused) && document.getElementById('mDurLinks')) {
     const totals = swGetSideTotals();
@@ -527,7 +530,13 @@ function openModal(type, existingEntry) {
     const showPause = hasActive ? '' : 'display:none';
     const showStop = hasActive ? '' : 'display:none';
     const pauseLabel = (hasActive && swPaused) ? '▶' : '⏸';
-    const swTime = (hasActive || hasSegments) ? swFormatTime(swGetTotal()) : '00:00';
+    let swTime = '00:00';
+    if (hasActive || hasSegments) { swTime = swFormatTime(swGetTotal()); }
+    else if (existingEntry) {
+      const totalMs = (existingEntry.secLinks || 0) * 1000 + (existingEntry.secRechts || 0) * 1000 + (existingEntry.secBeide || 0) * 1000
+        || (existingEntry.durationMin || 0) * 60000;
+      if (totalMs > 0) swTime = swFormatTime(totalMs);
+    }
     // Per-side durations (ms for precise display, minutes for input fields)
     let msL = 0, msR = 0, msB = 0;
     let durL = '', durR = '', durB = '';
@@ -550,17 +559,17 @@ function openModal(type, existingEntry) {
       <label>Brustseite & Dauer</label>
       <div class="side-row">
         <button class="side-btn${side==='links'?' active':''}" data-side="links" onclick="pickSide('links')"${hasActive && swRunning ? ' disabled' : ''}>Links</button>
-        <input type="number" id="mDurLinks" class="side-input" min="0" max="120" placeholder="Min" value="${durL}">
+        <input type="number" id="mDurLinks" class="side-input" min="0" max="120" placeholder="Min" value="${durL}" oninput="updateSideTime('Links')">
         <span class="side-unit" id="sideTimeLinks">${fmtUnit(msL)}</span>
       </div>
       <div class="side-row">
         <button class="side-btn${side==='rechts'?' active':''}" data-side="rechts" onclick="pickSide('rechts')"${hasActive && swRunning ? ' disabled' : ''}>Rechts</button>
-        <input type="number" id="mDurRechts" class="side-input" min="0" max="120" placeholder="Min" value="${durR}">
+        <input type="number" id="mDurRechts" class="side-input" min="0" max="120" placeholder="Min" value="${durR}" oninput="updateSideTime('Rechts')">
         <span class="side-unit" id="sideTimeRechts">${fmtUnit(msR)}</span>
       </div>
       <div class="side-row">
         <button class="side-btn${side==='beide'?' active':''}" data-side="beide" onclick="pickSide('beide')"${hasActive && swRunning ? ' disabled' : ''}>Beide</button>
-        <input type="number" id="mDurBeide" class="side-input" min="0" max="120" placeholder="Min" value="${durB}">
+        <input type="number" id="mDurBeide" class="side-input" min="0" max="120" placeholder="Min" value="${durB}" oninput="updateSideTime('Beide')">
         <span class="side-unit" id="sideTimeBeide">${fmtUnit(msB)}</span>
       </div>
       <div class="stopwatch" style="margin-top:.5rem">
@@ -571,7 +580,7 @@ function openModal(type, existingEntry) {
         <span class="stopwatch-display" id="swDisplay">${swTime}</span>
         <button class="toggle-btn" id="swSwitchBtn" onclick="swManualSwitch()" ${hasActive && swPaused ? '' : 'disabled'} style="background:var(--still-bg);color:var(--still);font-size:.85rem;padding:.4rem .8rem;${hasActive ? '' : 'display:none'}">🔄 Wechsel</button>
       </div>
-      <div id="switchReminder">${(hasActive && switchReminderFired) ? '<div class="switch-reminder">🔄 Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">🔄 Brust wechseln</button></div>' : ''}</div>
+      <div id="switchReminder">${(hasActive && switchReminderFired) ? '<div class="switch-reminder">🔄 Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">🔄 Brust wechseln</button> <button class="sw-switch-btn" onclick="dismissSwitchReminder()" style="background:var(--text2)">OK</button></div>' : ''}</div>
       <label>Wechsel-Intervall (Min, optional)</label>
       <input type="number" id="mSwitchInterval" min="1" max="60" placeholder="z.B. 20" value="${localStorage.getItem('baby_tracker_switch_interval') || '20'}">
       <input type="hidden" id="mSide" value="${side}">`;
@@ -654,13 +663,14 @@ function saveModal() {
 
   if (currentType === 'stillen') {
     // Finalize current segment if session is still running or paused
-    if (swRunning || swPaused) {
+    let wasLiveSession = swRunning || swPaused;
+    if (wasLiveSession) {
       if (swRunning) { stopwatchElapsed += Date.now() - stopwatchStart; stopwatchStart = null; swRunning = false; }
       swFinalizeSegment();
       swPaused = false;
     }
-    // When segments exist (live session), derive ALL data from segments (authoritative source)
-    if (swSegments.length > 0) {
+    // When live session was active, derive ALL data from segments (authoritative source)
+    if (wasLiveSession && swSegments.length > 0) {
       const segTotals = { links: 0, rechts: 0, beide: 0 };
       swSegments.forEach(seg => { if (segTotals.hasOwnProperty(seg.side)) segTotals[seg.side] += seg.ms; });
       data.durationLinks = Math.round(segTotals.links / 60000);
@@ -685,23 +695,32 @@ function saveModal() {
       });
       if (sideOrder.length > 0) data.sideOrder = sideOrder;
     } else {
-      // Manual entry: read from per-side fields
-      const durLinks = parseInt(document.getElementById('mDurLinks').value) || 0;
-      const durRechts = parseInt(document.getElementById('mDurRechts').value) || 0;
-      const durBeide = parseInt(document.getElementById('mDurBeide').value) || 0;
+      // Manual entry: use MM:SS labels as authoritative source (preserves second precision)
+      const msLinks = parseSideTimeMs('sideTimeLinks');
+      const msRechts = parseSideTimeMs('sideTimeRechts');
+      const msBeide = parseSideTimeMs('sideTimeBeide');
+      const durLinks = Math.round(msLinks / 60000);
+      const durRechts = Math.round(msRechts / 60000);
+      const durBeide = Math.round(msBeide / 60000);
       const totalDur = durLinks + durRechts + durBeide;
       let side = document.getElementById('mSide').value;
-      if (durLinks > 0 && durRechts > 0) side = 'beide';
-      else if (durLinks > 0 && !durRechts) side = 'links';
-      else if (durRechts > 0 && !durLinks) side = 'rechts';
-      else if (durBeide > 0) side = 'beide';
-      if (!side && totalDur === 0) { alert('Bitte Brustseite und Dauer angeben'); return; }
+      if (!side) {
+        if (msLinks > 0 && msRechts > 0) side = 'beide';
+        else if (msLinks > 0) side = 'links';
+        else if (msRechts > 0) side = 'rechts';
+        else if (msBeide > 0) side = 'beide';
+      }
+      if (!side && totalDur === 0 && msLinks === 0 && msRechts === 0 && msBeide === 0) { alert('Bitte Brustseite und Dauer angeben'); return; }
       if (!side) side = 'beide';
-      data.durationMin = totalDur;
+      data.durationMin = totalDur || (msLinks + msRechts + msBeide > 0 ? 1 : 0);
       data.side = side;
-      if (durLinks > 0) data.durationLinks = durLinks;
-      if (durRechts > 0) data.durationRechts = durRechts;
-      if (durBeide > 0) data.durationBeide = durBeide;
+      data.durationLinks = durLinks || undefined;
+      data.durationRechts = durRechts || undefined;
+      data.durationBeide = durBeide || undefined;
+      data.secLinks = msLinks > 0 ? Math.floor(msLinks / 1000) : undefined;
+      data.secRechts = msRechts > 0 ? Math.floor(msRechts / 1000) : undefined;
+      data.secBeide = msBeide > 0 ? Math.floor(msBeide / 1000) : undefined;
+      data.sideOrder = undefined;
     }
     // Clear stopwatch after saving
     clearSwitchReminder();
@@ -735,6 +754,28 @@ function pickSide(side) {
     swFinalizeSegment();
   }
   if (!swRunning) swSide = side;
+}
+
+function parseSideTimeMs(labelId) {
+  const el = document.getElementById(labelId);
+  if (!el || el.textContent === 'Min') return 0;
+  const parts = el.textContent.split(':').map(Number);
+  if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000;
+  return 0;
+}
+
+function updateSideTime(sideName) {
+  const input = document.getElementById('mDur' + sideName);
+  const label = document.getElementById('sideTime' + sideName);
+  if (!input || !label) return;
+  const min = parseInt(input.value) || 0;
+  label.textContent = min > 0 ? swFormatTime(min * 60000) : 'Min';
+  // Update total display from all MM:SS labels (preserves second precision of unchanged sides)
+  const display = document.getElementById('swDisplay');
+  if (display && !swRunning && !swPaused) {
+    const totalMs = parseSideTimeMs('sideTimeLinks') + parseSideTimeMs('sideTimeRechts') + parseSideTimeMs('sideTimeBeide');
+    display.textContent = totalMs > 0 ? swFormatTime(totalMs) : '00:00';
+  }
 }
 
 function swUpdateModalUI() {
@@ -791,8 +832,8 @@ function swStart() {
     if (!isNaN(v) && v > 0) localStorage.setItem('baby_tracker_switch_interval', v);
     else localStorage.removeItem('baby_tracker_switch_interval');
   }
-  // Adopt manual duration as segment if current live timer is at 0:00
-  if (swCurrentSegmentMs() === 0) {
+  // Adopt manual duration as segment if current live timer is at 0:00 and no segments exist yet
+  if (swCurrentSegmentMs() === 0 && swSegments.length === 0) {
     const sideFieldId = 'mDur' + swSide.charAt(0).toUpperCase() + swSide.slice(1);
     const manualDur = parseInt(document.getElementById(sideFieldId).value);
     if (!isNaN(manualDur) && manualDur > 0) {
@@ -815,7 +856,7 @@ function swStart() {
   stopwatchElapsed = 0;
   swRunning = true;
   swPaused = false;
-  switchReminderFired = false;
+  if (!switchReminderDismissed) switchReminderFired = false;
   clearSwitchReminder();
   swSaveState();
   swUpdateModalUI();
@@ -842,7 +883,7 @@ function swResume() {
   stopwatchStart = Date.now();
   swRunning = true;
   swPaused = false;
-  switchReminderFired = false;
+  if (!switchReminderDismissed) switchReminderFired = false;
   clearSwitchReminder();
   swSaveState();
   swUpdateModalUI();
@@ -898,6 +939,9 @@ function swManualSwitch() {
   // Switch side
   const newSide = swSide === 'links' ? 'rechts' : 'links';
   swSwitchSideUI(newSide);
+  // Side changed — allow new reminder for this side
+  switchReminderDismissed = false;
+  switchReminderFired = false;
   // Stay paused — user must press Start to continue
   stopwatchStart = null;
   stopwatchElapsed = 0;
@@ -958,6 +1002,7 @@ function swSwitchBreast() {
   stopwatchStart = null;
   stopwatchElapsed = 0;
   switchReminderFired = false;
+  switchReminderDismissed = false;
   clearSwitchReminder();
   swSaveState();
   swUpdateModalUI();
@@ -995,7 +1040,7 @@ function fireSwitchReminder() {
   switchReminderInterval = setInterval(playBeep, 10000);
   // Visual reminder if modal is open
   const rem = document.getElementById('switchReminder');
-  if (rem) rem.innerHTML = '<div class="switch-reminder">🔄 Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">🔄 Brust wechseln</button></div>';
+  if (rem) rem.innerHTML = '<div class="switch-reminder">🔄 Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">🔄 Brust wechseln</button> <button class="sw-switch-btn" onclick="dismissSwitchReminder()" style="background:var(--text2)">OK</button></div>';
   // System notification for background
   if ('Notification' in window && Notification.permission === 'granted') {
     try { new Notification('Brustwechsel!', { body: 'Zeit die Seite zu wechseln', tag: 'switch-reminder', renotify: true }); } catch(e) {}
@@ -1041,6 +1086,14 @@ function clearSwitchReminder() {
   if (switchReminderInterval) { clearInterval(switchReminderInterval); switchReminderInterval = null; }
   const rem = document.getElementById('switchReminder');
   if (rem) rem.innerHTML = '';
+}
+
+function dismissSwitchReminder() {
+  // Acknowledge reminder without switching breast — no new reminder until side changes
+  clearSwitchReminder();
+  switchReminderFired = true;
+  switchReminderDismissed = true;
+  swSaveState();
 }
 
 
@@ -1186,11 +1239,41 @@ function renderEntries() {
 function editEntry(id) {
   const entry = loadEntries().find(e => e.id === id);
   if (!entry) return;
-  // For stillen entries: restore stopwatch state so user can resume live session
-  if (entry.type === 'stillen' && (entry.durationMin > 0 || entry.durationLinks > 0 || entry.durationRechts > 0 || entry.secLinks > 0 || entry.secRechts > 0 || entry.secBeide > 0)) {
-    swRestoreFromEntry(entry);
+  // For stillen: restore segments but stay inactive (not paused/running)
+  if (entry.type === 'stillen') {
+    swClearState();
+    swRestoreSegmentsFromEntry(entry);
   }
   openModal(entry.type, entry);
+}
+
+function swRestoreSegmentsFromEntry(entry) {
+  // Rebuild segments from entry data without activating the stopwatch
+  swSegments = [];
+  const msLinks = entry.secLinks ? entry.secLinks * 1000 : (entry.durationLinks || 0) * 60000;
+  const msRechts = entry.secRechts ? entry.secRechts * 1000 : (entry.durationRechts || 0) * 60000;
+  const msBeide = entry.secBeide ? entry.secBeide * 1000 : (entry.durationBeide || 0) * 60000;
+  if (entry.sideOrder && entry.sideOrder.length > 0) {
+    const sideTotals = { links: msLinks, rechts: msRechts, beide: msBeide };
+    const sideCount = {};
+    entry.sideOrder.forEach(s => { sideCount[s] = (sideCount[s] || 0) + 1; });
+    entry.sideOrder.forEach(s => {
+      const ms = Math.round(sideTotals[s] / sideCount[s]);
+      if (ms > 0) swSegments.push({ side: s, ms });
+    });
+  } else if (msLinks > 0 || msRechts > 0) {
+    if (msLinks > 0) swSegments.push({ side: 'links', ms: msLinks });
+    if (msRechts > 0) swSegments.push({ side: 'rechts', ms: msRechts });
+    if (msBeide > 0) swSegments.push({ side: 'beide', ms: msBeide });
+  } else if (entry.durationMin > 0) {
+    swSegments.push({ side: entry.side || 'beide', ms: entry.durationMin * 60000 });
+  }
+  swSide = entry.sideOrder && entry.sideOrder.length > 0 ? entry.sideOrder[entry.sideOrder.length - 1] : entry.side;
+  // Stay inactive — no running, no paused
+  swRunning = false;
+  swPaused = false;
+  stopwatchStart = null;
+  stopwatchElapsed = 0;
 }
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
