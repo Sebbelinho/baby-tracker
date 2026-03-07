@@ -182,7 +182,7 @@
 
   /* Timer widget minimize */
   .timer-widget{position:relative}
-  .timer-btn-minimize{position:absolute;top:.3rem;right:.3rem;background:none;border:none;color:rgba(255,255,255,.45);font-size:1.8rem;line-height:1;cursor:pointer;padding:.5rem;z-index:1}
+  .timer-btn-minimize{position:absolute;top:.3rem;left:.3rem;background:none;border:none;color:rgba(255,255,255,.45);font-size:1.6rem;line-height:1;cursor:pointer;padding:.5rem;z-index:1}
   .timer-btn-minimize:active{color:#fff}
 
   /* Live session bar (visible on dashboard when session running) */
@@ -285,15 +285,12 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 19:14</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 20:06</span></i>
   <div id="clock"></div>
 </header>
 
 <div class="page-layout">
   <div class="page-left">
-    <div class="live-session-bar" id="liveSessionBar" onclick="twShow()">
-      ⏱ Live-Session: <span id="liveSessionTime">00:00</span> <small>(Tippen zum Öffnen)</small>
-    </div>
     <div class="actions">
       <button class="action-btn btn-stillen" id="btnStillen" onclick="openModal('stillen')">
         <span class="icon">🤱</span>Stillen
@@ -306,7 +303,11 @@
         <span class="icon">🌡️</span>Temperatur
       </button>
     </div>
+    <div class="live-session-bar" id="liveSessionBar" onclick="twShow()">
+      ⏱ Live-Session: <span id="liveSessionTime">00:00</span> <small>(Tippen zum Öffnen)</small>
+    </div>
     <div class="last-feed-summary" id="lastFeedSummary"></div>
+    <div class="last-feed-summary" id="lastDiaperSummary"></div>
     <div class="export-bar">
       <button class="export-btn" onclick="exportData()">📥 JSON</button>
       <button class="export-btn" onclick="showQR()">📤 QR teilen</button>
@@ -361,7 +362,7 @@
 <!-- Timer Widget -->
 <div class="timer-widget-overlay" id="timerWidget">
   <div class="timer-widget">
-    <button class="timer-btn-minimize" onclick="twMinimize()" aria-label="Minimieren">&times;</button>
+    <button class="timer-btn-minimize" onclick="twMinimize()" aria-label="Zurück">&#x21A9;</button>
     <div class="timer-side-label" id="twSideLabel"></div>
     <div class="timer-ring-container">
       <svg class="timer-ring" viewBox="0 0 200 200">
@@ -1414,8 +1415,33 @@ function renderLastFeedSummary() {
   </div>`;
 }
 
+function renderLastDiaperSummary() {
+  const el = document.getElementById('lastDiaperSummary');
+  if (!el) return;
+  const entries = loadEntries();
+  const last = entries.find(e => e.type === 'wickeln');
+  if (!last) { el.innerHTML = ''; return; }
+
+  const typeMap = { nass: '💧 Nass', stuhl: '💩 Stuhl', beides: '💧💩 Beides' };
+  const typeStr = typeMap[last.diaperType] || last.diaperType || '?';
+
+  const agoMs = Date.now() - new Date(last.timestamp).getTime();
+  const agoH = Math.floor(agoMs / 3600000);
+  const agoM = Math.floor((agoMs % 3600000) / 60000);
+  let agoStr = '';
+  if (agoH > 0) agoStr = `vor ${agoH}h ${agoM}min`;
+  else agoStr = `vor ${agoM} min`;
+
+  el.innerHTML = `<div class="feed-card">
+    <div class="feed-card-title" style="color:var(--wickel)">👶 Letztes Wickeln</div>
+    <span class="feed-side">${typeStr}</span>
+    <span class="feed-ago">${agoStr}</span>
+  </div>`;
+}
+
 function renderEntries() {
   renderLastFeedSummary();
+  renderLastDiaperSummary();
   const entries = loadEntries();
   const container = document.getElementById('entries');
   if (!entries.length) { container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:2rem">Noch keine Einträge</p>'; return; }
