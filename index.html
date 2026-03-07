@@ -177,7 +177,7 @@
   .timer-btn-pause .tw-pause-bars span{display:block;width:5px;height:20px;background:#fff;border-radius:2px}
   .timer-btn-pause .tw-play-arrow{width:0;height:0;border-style:solid;border-width:10px 0 10px 18px;border-color:transparent transparent transparent #fff;margin-left:3px}
   .timer-btn-pause.is-paused{background:#34c759}
-  .timer-btn-finish{height:48px;padding:0 1.2rem;background:#e8a44a;color:#fff;margin-top:.2rem;font-size:.85rem;font-weight:700;letter-spacing:.03em}
+  .timer-btn-finish{height:42px;padding:0 1.5rem;background:#e8a44a;color:#fff;margin-top:.5rem;font-size:.85rem;font-weight:700;letter-spacing:.03em;border-radius:10px}
   .tw-reminder{animation:livePulse 2s ease-in-out infinite;color:#e8a44a;font-weight:600;font-size:.95rem;text-align:center;margin-top:.3rem}
   .tw-reminder button{margin:0 .3rem;padding:.45rem 1rem;border:none;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer}
   .tw-reminder .tw-rem-ok{background:rgba(255,255,255,.2);color:#fff}
@@ -290,7 +290,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 20:57</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 22:07</span></i>
   <div id="clock"></div>
 </header>
 
@@ -381,8 +381,8 @@
     <div class="timer-controls">
       <button class="timer-btn timer-btn-switch" id="twSwitchBtn" onclick="twSwitch()"><span class="tw-switch-icon"><span></span><span></span></span><span class="tw-switch-label">Wechsel</span></button>
       <button class="timer-btn timer-btn-pause" id="twPauseBtn" onclick="twTogglePause()"><span class="tw-icon"><span class="tw-pause-bars"><span></span><span></span></span></span></button>
-      <button class="timer-btn timer-btn-finish" id="twStopBtn" onclick="twStop()">Fertig</button>
     </div>
+    <button class="timer-btn timer-btn-finish" id="twStopBtn" onclick="twStop()">Fertig</button>
     <div id="twReminder"></div>
   </div>
 </div>
