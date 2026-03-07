@@ -214,6 +214,28 @@
   .feed-ago{color:var(--text2);font-size:.8rem;margin-left:auto}
   .entry-side-order{font-size:.75rem;color:var(--text2);margin-top:2px}
 
+  /* Settings button */
+  .settings-btn{position:absolute;right:1rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text2);font-size:1.3rem;padding:.3rem;display:flex;align-items:center;justify-content:center;transition:transform .3s}
+  .settings-btn:active{transform:translateY(-50%) rotate(90deg)}
+  .settings-btn svg{width:22px;height:22px;fill:currentColor}
+  .settings-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)}
+  .settings-modal-overlay.open{display:flex}
+  .settings-modal{background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:500px;padding:1.5rem;max-height:85dvh;overflow-y:auto;animation:slideUp .3s ease}
+  .settings-modal h2{font-size:1.2rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+  .setting-row{display:flex;align-items:center;gap:.75rem;padding:.75rem 0;border-bottom:1px solid var(--bg)}
+  .setting-row:last-child{border-bottom:none}
+  .setting-row label{flex:1;font-size:.9rem;font-weight:600;color:var(--text)}
+  .setting-row input[type="number"]{width:70px;padding:.5rem;border:2px solid var(--bg);border-radius:10px;font-size:.9rem;background:var(--bg);color:var(--text);text-align:center;font-family:inherit}
+  .setting-row input[type="number"]:disabled{opacity:.4}
+  .setting-check{width:20px;height:20px;accent-color:var(--still);cursor:pointer;flex-shrink:0}
+  .setting-desc{font-size:.75rem;color:var(--text2);margin-top:.2rem;font-weight:400}
+
+  /* Diaper alert */
+  .btn-wickeln.diaper-alert{border:3px solid #e8a44a;position:relative}
+  .btn-wickeln.diaper-alert::after{content:'!';position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:22px;height:22px;border-radius:50%;background:#e8a44a;color:#fff;font-size:.85rem;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1}
+  .diaper-alert-label{max-width:500px;margin:.25rem auto 0;padding:0 1rem;text-align:center;font-size:.8rem;font-weight:600;color:#e8a44a;animation:livePulse 2s ease-in-out infinite}
+  .diaper-alert-label:empty{display:none}
+
   /* Stool color reference */
   .stool-ref-btn{width:100%;padding:.7rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.5rem;text-align:center}
   .img-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;flex-direction:column;align-items:center;justify-content:center}
@@ -290,7 +312,8 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 22:07</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 22:19</span></i>
+  <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
 
@@ -308,6 +331,7 @@
         <span class="icon">🌡️</span>Temperatur
       </button>
     </div>
+    <div class="diaper-alert-label" id="diaperAlertLabel"></div>
     <div class="live-session-bar" id="liveSessionBar" onclick="twShow()">
       ⏱ Live-Session: <span id="liveSessionTime">00:00</span> <small>(Tippen zum Öffnen)</small>
     </div>
@@ -358,6 +382,32 @@
 </div>
 <input type="file" id="stoolFileInput" accept="image/*" style="display:none" onchange="handleStoolFile(this)">
 <input type="file" id="stoolCameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleStoolFile(this)">
+
+<!-- Settings Modal -->
+<div class="settings-modal-overlay" id="settingsOverlay" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-modal">
+    <h2>⚙️ Einstellungen</h2>
+    <div class="setting-row">
+      <input type="checkbox" class="setting-check" id="setLimitEnabled" onchange="toggleSettingLimit()">
+      <div style="flex:1">
+        <label for="setLimitValue">Session Zeitlimit je Brustseite</label>
+        <div class="setting-desc">Standardwert für das Still-Modal (Min)</div>
+      </div>
+      <input type="number" id="setLimitValue" min="1" max="60" placeholder="Min" onchange="saveSettings()">
+    </div>
+    <div class="setting-row">
+      <input type="checkbox" class="setting-check" id="setDiaperEnabled" onchange="toggleSettingDiaper()">
+      <div style="flex:1">
+        <label for="setDiaperValue">Wickel-Erinnerung</label>
+        <div class="setting-desc">Maximaldauer zwischen zwei Wickel-Sessions (Std)</div>
+      </div>
+      <input type="number" id="setDiaperValue" min="0.5" max="24" step="0.5" placeholder="Std" onchange="saveSettings()">
+    </div>
+    <div style="margin-top:1.5rem">
+      <button class="btn-cancel" onclick="closeSettings()" style="width:100%;padding:.8rem;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;background:var(--bg);color:var(--text)">Schließen</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
@@ -416,6 +466,7 @@ function loadEntries() {
 function saveEntries(entries) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   if (typeof Chart !== 'undefined' && typeof renderDashboard === 'function') setTimeout(renderDashboard, 100);
+  if (typeof checkDiaperAlert === 'function') setTimeout(checkDiaperAlert, 200);
 }
 function addEntry(entry) {
   const entries = loadEntries();
@@ -722,7 +773,7 @@ function openModal(type, existingEntry) {
       <button class="sw-timer-btn" id="swTimerBtn" onclick="twShow()" style="display:${hasActive ? 'block' : 'none'}">⏱ Timer-Widget öffnen</button>
       <div id="switchReminder"></div>
       <label>Session Zeitlimit je Brustseite (Min, optional)</label>
-      <input type="number" id="mSwitchInterval" min="1" max="60" placeholder="z.B. 20" value="${localStorage.getItem('baby_tracker_switch_interval') || '20'}">
+      <input type="number" id="mSwitchInterval" min="1" max="60" placeholder="z.B. 20" value="${(() => { const _s = loadSettings(); return _s.limitEnabled && _s.limitValue ? _s.limitValue : (localStorage.getItem('baby_tracker_switch_interval') || ''); })()}">
       <input type="hidden" id="mSide" value="${side}">`;
   } else if (type === 'wickeln') {
     const dt = existingEntry ? existingEntry.diaperType : '';
@@ -2313,9 +2364,89 @@ function closeChart() {
   if (fullChart) { fullChart.destroy(); fullChart = null; }
 }
 
+// --- Settings ---
+function loadSettings() {
+  try { return JSON.parse(localStorage.getItem('baby_tracker_settings') || '{}'); } catch { return {}; }
+}
+function saveSettings() {
+  const s = loadSettings();
+  s.limitEnabled = document.getElementById('setLimitEnabled').checked;
+  s.limitValue = parseInt(document.getElementById('setLimitValue').value) || 0;
+  s.diaperEnabled = document.getElementById('setDiaperEnabled').checked;
+  s.diaperValue = parseFloat(document.getElementById('setDiaperValue').value) || 0;
+  localStorage.setItem('baby_tracker_settings', JSON.stringify(s));
+  // Sync switch interval
+  if (s.limitEnabled && s.limitValue > 0) localStorage.setItem('baby_tracker_switch_interval', s.limitValue);
+  else localStorage.removeItem('baby_tracker_switch_interval');
+  checkDiaperAlert();
+}
+function toggleSettingLimit() {
+  document.getElementById('setLimitValue').disabled = !document.getElementById('setLimitEnabled').checked;
+  saveSettings();
+}
+function toggleSettingDiaper() {
+  document.getElementById('setDiaperValue').disabled = !document.getElementById('setDiaperEnabled').checked;
+  saveSettings();
+}
+function openSettings() {
+  const s = loadSettings();
+  document.getElementById('setLimitEnabled').checked = !!s.limitEnabled;
+  document.getElementById('setLimitValue').value = s.limitValue || '';
+  document.getElementById('setLimitValue').disabled = !s.limitEnabled;
+  document.getElementById('setDiaperEnabled').checked = !!s.diaperEnabled;
+  document.getElementById('setDiaperValue').value = s.diaperValue || '';
+  document.getElementById('setDiaperValue').disabled = !s.diaperEnabled;
+  document.getElementById('settingsOverlay').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+}
+
+// --- Diaper alert ---
+function checkDiaperAlert() {
+  const s = loadSettings();
+  const btn = document.querySelector('.btn-wickeln');
+  const label = document.getElementById('diaperAlertLabel');
+  if (!btn || !label) return;
+  if (!s.diaperEnabled || !s.diaperValue) {
+    btn.classList.remove('diaper-alert');
+    label.textContent = '';
+    return;
+  }
+  const entries = loadEntries();
+  const last = entries.find(e => e.type === 'wickeln');
+  if (!last) {
+    btn.classList.add('diaper-alert');
+    label.textContent = '⚠ Noch kein Wickeln eingetragen!';
+    return;
+  }
+  const agoMs = Date.now() - new Date(last.timestamp).getTime();
+  const limitMs = s.diaperValue * 3600000;
+  if (agoMs > limitMs) {
+    const agoH = Math.floor(agoMs / 3600000);
+    const agoM = Math.floor((agoMs % 3600000) / 60000);
+    const agoStr = agoH > 0 ? `${agoH}h ${agoM}min` : `${agoM} min`;
+    btn.classList.add('diaper-alert');
+    label.textContent = `⚠ Letztes Wickeln vor ${agoStr} — Zeitlimit überschritten!`;
+  } else {
+    btn.classList.remove('diaper-alert');
+    label.textContent = '';
+  }
+}
+
 // Init
 renderEntries();
 if (typeof Chart !== 'undefined') renderDashboard();
+// Migrate existing switch_interval to settings if not set
+(function() {
+  const s = loadSettings();
+  if (!s.limitValue) {
+    const existing = localStorage.getItem('baby_tracker_switch_interval');
+    if (existing) { s.limitEnabled = true; s.limitValue = parseInt(existing); localStorage.setItem('baby_tracker_settings', JSON.stringify(s)); }
+  }
+})();
+checkDiaperAlert();
+setInterval(checkDiaperAlert, 60000);
 </script>
 </body>
 </html>
