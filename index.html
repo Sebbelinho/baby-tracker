@@ -151,7 +151,9 @@
   .timer-ring-progress{fill:none;stroke:var(--still);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .25s linear,stroke .3s}
   .timer-ring-progress.warning{stroke:var(--temp);animation:reminderBlink 1s ease-in-out infinite}
   .timer-ring-progress.hidden{stroke:transparent}
-  .timer-time{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.8rem;font-weight:200;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .timer-time{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.8rem;font-weight:200;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.02em;padding-bottom:1.2rem}
+  .timer-sides{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:3rem;gap:.6rem;font-size:.8rem;font-weight:500;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
+  .timer-sides .tw-side-active{color:var(--still);font-weight:700}
   .timer-time.paused{opacity:.5}
   .timer-controls{display:flex;gap:1rem;align-items:center}
   .timer-btn{border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:600;transition:transform .15s,opacity .15s}
@@ -333,6 +335,7 @@
         <circle class="timer-ring-progress" id="twRingProgress" cx="100" cy="100" r="90"/>
       </svg>
       <div class="timer-time" id="twTime">00:00:00</div>
+      <div class="timer-sides" id="twSides"></div>
     </div>
     <div class="timer-controls">
       <button class="timer-btn timer-btn-switch" id="twSwitchBtn" onclick="twSwitch()">🔄</button>
@@ -452,9 +455,12 @@ function swClearState() {
   if (switchAlarmTimeout) { clearTimeout(switchAlarmTimeout); switchAlarmTimeout = null; }
 }
 
+// Cached timestamp for consistent calculations within a single tick
+let swNow = Date.now();
+
 // Get ms of current segment (running or paused)
 function swCurrentSegmentMs() {
-  if (swRunning && stopwatchStart) return stopwatchElapsed + (Date.now() - stopwatchStart);
+  if (swRunning && stopwatchStart) return stopwatchElapsed + (swNow - stopwatchStart);
   return stopwatchElapsed;
 }
 
@@ -482,7 +488,7 @@ function swFormatTime(ms) {
 
 // Finalize current segment into swSegments
 function swFinalizeSegment() {
-  const ms = swCurrentSegmentMs();
+  const ms = Math.floor(swCurrentSegmentMs() / 1000) * 1000; // round to full seconds
   if (ms > 0 && swSide) {
     swSegments.push({ side: swSide, ms });
   }
@@ -502,6 +508,7 @@ function swGetSideTotals() {
 
 // Global tick — runs even when modal is closed
 function swGlobalTick() {
+  swNow = Date.now();
   const total = swGetTotal();
   // Update indicator on button
   const ind = document.getElementById('swIndicator');
@@ -1198,8 +1205,15 @@ function twUpdate() {
   const tw = document.getElementById('timerWidget');
   if (!tw || !tw.classList.contains('open')) return;
 
+  // Compute all values from a single snapshot of currentSegmentMs
+  const curMs = swCurrentSegmentMs();
+  const segTotals = { links: 0, rechts: 0, beide: 0 };
+  let segSum = 0;
+  swSegments.forEach(seg => { segSum += seg.ms; if (segTotals.hasOwnProperty(seg.side)) segTotals[seg.side] += seg.ms; });
+  if (curMs > 0 && swSide && segTotals.hasOwnProperty(swSide)) segTotals[swSide] += curMs;
+  const total = segSum + curMs;
+
   // Total time
-  const total = swGetTotal();
   const timeEl = document.getElementById('twTime');
   if (timeEl) {
     timeEl.textContent = swFormatTimeHMS(total);
@@ -1217,8 +1231,8 @@ function twUpdate() {
     const interval = parseInt(localStorage.getItem('baby_tracker_switch_interval'));
     if (interval) {
       ring.classList.remove('hidden');
-      const sideTotal = swSideEffectiveMs();
-      const progress = Math.min(sideTotal / (interval * 60000), 1);
+      const effectiveSide = Math.max(0, (swSegments.filter(s => s.side === swSide).reduce((sum, s) => sum + s.ms, 0) + curMs) - (swSideOffset[swSide] || 0));
+      const progress = Math.min(effectiveSide / (interval * 60000), 1);
       ring.style.strokeDasharray = TW_CIRCUMFERENCE;
       ring.style.strokeDashoffset = TW_CIRCUMFERENCE * (1 - progress);
       ring.classList.toggle('warning', switchReminderFired);
@@ -1239,6 +1253,16 @@ function twUpdate() {
   // Switch button — only enabled when paused
   const switchBtn = document.getElementById('twSwitchBtn');
   if (switchBtn) switchBtn.disabled = !swPaused;
+
+  // Per-side times (from same snapshot)
+  const sidesEl = document.getElementById('twSides');
+  if (sidesEl) {
+    let parts = [];
+    if (segTotals.links > 0 || swSide === 'links') parts.push(`<span class="${swSide==='links'?'tw-side-active':''}">L ${swFormatTime(segTotals.links)}</span>`);
+    if (segTotals.rechts > 0 || swSide === 'rechts') parts.push(`<span class="${swSide==='rechts'?'tw-side-active':''}">R ${swFormatTime(segTotals.rechts)}</span>`);
+    if (segTotals.beide > 0 || swSide === 'beide') parts.push(`<span class="${swSide==='beide'?'tw-side-active':''}">B ${swFormatTime(segTotals.beide)}</span>`);
+    sidesEl.innerHTML = parts.join('<span style="opacity:.3">·</span>');
+  }
 }
 
 function twTogglePause() {
