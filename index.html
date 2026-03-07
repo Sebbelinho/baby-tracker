@@ -160,9 +160,14 @@
   .timer-btn:active{transform:scale(.9)}
   .timer-btn:disabled{opacity:.35;cursor:not-allowed}
   .timer-btn-switch{width:56px;height:56px;font-size:1.4rem;background:rgba(255,255,255,.15);color:#fff}
-  .timer-btn-pause{width:64px;height:64px;font-size:1.6rem;background:var(--still);color:#fff}
+  .timer-btn-pause{width:64px;height:64px;background:var(--still);color:#fff;position:relative}
+  .timer-btn-pause .tw-icon{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+  .timer-btn-pause .tw-pause-bars{display:flex;gap:5px}
+  .timer-btn-pause .tw-pause-bars span{display:block;width:5px;height:20px;background:#fff;border-radius:2px}
+  .timer-btn-pause .tw-play-arrow{width:0;height:0;border-style:solid;border-width:10px 0 10px 18px;border-color:transparent transparent transparent #fff;margin-left:3px}
   .timer-btn-pause.is-paused{background:#34c759}
-  .timer-btn-stop{width:48px;height:48px;font-size:1.1rem;background:var(--danger);color:#fff;margin-top:.2rem}
+  .timer-btn-stop{width:48px;height:48px;background:var(--danger);color:#fff;margin-top:.2rem;position:relative}
+  .timer-btn-stop .tw-stop-square{width:16px;height:16px;background:#fff;border-radius:2px}
   .tw-reminder{animation:reminderBlink 1s ease-in-out infinite;color:var(--temp);font-weight:600;font-size:.95rem;text-align:center;margin-top:.3rem}
   .tw-reminder button{margin:0 .3rem;padding:.45rem 1rem;border:none;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer}
   .tw-reminder .tw-rem-switch{background:#34c759;color:#fff}
@@ -255,7 +260,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 08:51</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 08:56</span></i>
   <div id="clock"></div>
 </header>
 
@@ -339,8 +344,8 @@
     </div>
     <div class="timer-controls">
       <button class="timer-btn timer-btn-switch" id="twSwitchBtn" onclick="twSwitch()">🔄</button>
-      <button class="timer-btn timer-btn-pause" id="twPauseBtn" onclick="twTogglePause()">⏸</button>
-      <button class="timer-btn timer-btn-stop" id="twStopBtn" onclick="twStop()">■</button>
+      <button class="timer-btn timer-btn-pause" id="twPauseBtn" onclick="twTogglePause()"><span class="tw-icon"><span class="tw-pause-bars"><span></span><span></span></span></span></button>
+      <button class="timer-btn timer-btn-stop" id="twStopBtn" onclick="twStop()"><span class="tw-stop-square"></span></button>
     </div>
     <div id="twReminder"></div>
   </div>
@@ -856,7 +861,7 @@ function swUpdateModalUI() {
     pauseBtn.style.display = '';
     stopBtn.style.display = '';
     if (resetBtn) resetBtn.style.display = '';
-    pauseBtn.textContent = swPaused ? '▶' : '⏸';
+    pauseBtn.textContent = swPaused ? '\u25B6' : '\u23F8\uFE0E';
     pauseBtn.className = 'sw-btn ' + (swPaused ? 'sw-start' : 'sw-pause');
     pauseBtn.onclick = swPaused ? swResume : swPause;
   } else {
@@ -1248,7 +1253,7 @@ function twUpdate() {
   // Pause button
   const pauseBtn = document.getElementById('twPauseBtn');
   if (pauseBtn) {
-    pauseBtn.textContent = swPaused ? '▶' : '⏸';
+    pauseBtn.innerHTML = swPaused ? '<span class="tw-icon"><span class="tw-play-arrow"></span></span>' : '<span class="tw-icon"><span class="tw-pause-bars"><span></span><span></span></span></span>';
     pauseBtn.classList.toggle('is-paused', swPaused);
   }
 
