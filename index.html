@@ -149,9 +149,8 @@
   .timer-ring-container{position:relative;width:240px;height:240px}
   .timer-ring{width:100%;height:100%;transform:rotate(-90deg)}
   .timer-ring-bg{fill:none;stroke:rgba(255,255,255,.12);stroke-width:6}
-  .timer-ring-progress{fill:none;stroke:var(--still);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .25s linear,stroke .3s}
-  .timer-ring-progress.warning{stroke:#e8a44a}
-  .timer-ring-progress.warning-dismissed{stroke:#e8a44a}
+  .timer-ring-progress{fill:none;stroke:var(--still);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .25s linear}
+
   .timer-ring-progress.hidden{stroke:transparent}
   .timer-time{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.8rem;font-weight:200;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.02em;padding-bottom:1.2rem}
   .timer-sides{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:3rem;gap:.6rem;font-size:.8rem;font-weight:500;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
@@ -164,7 +163,7 @@
   .timer-btn-switch{width:56px;height:56px;background:rgba(255,255,255,.15);color:#fff;position:relative;overflow:visible;border:3px solid transparent;transition:border-color .3s,opacity .3s}
   .timer-btn-switch.switch-alert{border-color:#e8a44a;opacity:1}
   .timer-btn-switch.switch-alert.blink-off{border-color:rgba(232,164,74,.25)}
-  .timer-ring-progress.warning.blink-off{opacity:.4}
+
   .tw-switch-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:.55rem;font-weight:600;color:rgba(255,255,255,.7);white-space:nowrap;display:none;animation:livePulse 2s ease-in-out infinite}
   .timer-btn-switch:not(:disabled) .tw-switch-label{display:block}
   .tw-switch-icon{display:flex;flex-direction:column;align-items:center;gap:2px}
@@ -178,17 +177,16 @@
   .timer-btn-pause .tw-pause-bars span{display:block;width:5px;height:20px;background:#fff;border-radius:2px}
   .timer-btn-pause .tw-play-arrow{width:0;height:0;border-style:solid;border-width:10px 0 10px 18px;border-color:transparent transparent transparent #fff;margin-left:3px}
   .timer-btn-pause.is-paused{background:#34c759}
-  .timer-btn-stop{width:48px;height:48px;background:var(--danger);color:#fff;margin-top:.2rem;position:relative}
-  .timer-btn-stop .tw-stop-square{width:16px;height:16px;background:#fff;border-radius:2px}
+  .timer-btn-finish{height:48px;padding:0 1.2rem;background:#e8a44a;color:#fff;margin-top:.2rem;font-size:.85rem;font-weight:700;letter-spacing:.03em}
   .tw-reminder{animation:livePulse 2s ease-in-out infinite;color:#e8a44a;font-weight:600;font-size:.95rem;text-align:center;margin-top:.3rem}
   .tw-reminder button{margin:0 .3rem;padding:.45rem 1rem;border:none;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer}
-  .tw-reminder .tw-rem-switch{background:#34c759;color:#fff}
   .tw-reminder .tw-rem-ok{background:rgba(255,255,255,.2);color:#fff}
 
   /* Timer widget minimize */
   .timer-widget{position:relative}
   .timer-btn-minimize{position:absolute;top:.3rem;left:.3rem;background:none;border:none;color:rgba(255,255,255,.45);font-size:1.6rem;line-height:1;cursor:pointer;padding:.5rem;z-index:1}
   .timer-btn-minimize:active{color:#fff}
+  .tw-limit-label{display:none;border:2px solid #e8a44a;color:#e8a44a;border-radius:8px;padding:.3rem .8rem;font-size:.75rem;font-weight:600;letter-spacing:.03em}
 
   /* Live session bar (visible on dashboard when session running) */
   .live-session-bar{display:none;background:var(--still);color:#fff;border-radius:var(--radius);padding:.6rem 1rem;margin-bottom:.5rem;text-align:center;font-weight:700;font-size:.9rem;cursor:pointer;animation:livePulse 2s ease-in-out infinite;box-shadow:0 2px 8px rgba(0,0,0,.15)}
@@ -370,6 +368,7 @@
 <div class="timer-widget-overlay" id="timerWidget">
   <div class="timer-widget">
     <button class="timer-btn-minimize" onclick="twMinimize()" aria-label="Zurück">&#x21A9;</button>
+    <div class="tw-limit-label" id="twLimitLabel">Session Limit erreicht</div>
     <div class="timer-side-label" id="twSideLabel"></div>
     <div class="timer-ring-container">
       <svg class="timer-ring" viewBox="0 0 200 200">
@@ -382,7 +381,7 @@
     <div class="timer-controls">
       <button class="timer-btn timer-btn-switch" id="twSwitchBtn" onclick="twSwitch()"><span class="tw-switch-icon"><span></span><span></span></span><span class="tw-switch-label">Wechsel</span></button>
       <button class="timer-btn timer-btn-pause" id="twPauseBtn" onclick="twTogglePause()"><span class="tw-icon"><span class="tw-pause-bars"><span></span><span></span></span></span></button>
-      <button class="timer-btn timer-btn-stop" id="twStopBtn" onclick="twStop()"><span class="tw-stop-square"></span></button>
+      <button class="timer-btn timer-btn-finish" id="twStopBtn" onclick="twStop()">Fertig</button>
     </div>
     <div id="twReminder"></div>
   </div>
@@ -460,13 +459,14 @@ let swSide = '';              // current side being timed
 let swSegments = [];          // [{side:'links', ms:123456}, ...]
 let switchReminderFired = false;
 let switchReminderDismissed = false;  // true if reminder was acknowledged without switching
+let limitDismissedSides = {};        // { links: true, rechts: true } — sides where limit was dismissed
 let swSideOffset = { links: 0, rechts: 0, beide: 0 };  // ms already "served" per side (reset after interval reached + switch)
 let switchReminderInterval = null;
 let switchAlarmTimeout = null;
 let swSessionStartTime = null;  // stored time string HH:MM when session began
 
 function swSaveState() {
-  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide, segments: swSegments, reminderFired: switchReminderFired, reminderDismissed: switchReminderDismissed, sideOffset: swSideOffset, sessionStartTime: swSessionStartTime };
+  const state = { start: stopwatchStart, elapsed: stopwatchElapsed, running: swRunning, paused: swPaused, side: swSide, segments: swSegments, reminderFired: switchReminderFired, reminderDismissed: switchReminderDismissed, limitDismissedSides: limitDismissedSides, sideOffset: swSideOffset, sessionStartTime: swSessionStartTime };
   localStorage.setItem(SW_KEY, JSON.stringify(state));
 }
 
@@ -482,6 +482,7 @@ function swLoadState() {
     swSegments = s.segments || [];
     switchReminderFired = s.reminderFired || false;
     switchReminderDismissed = s.reminderDismissed || false;
+    limitDismissedSides = s.limitDismissedSides || {};
     swSideOffset = s.sideOffset || { links: 0, rechts: 0, beide: 0 };
     swSessionStartTime = s.sessionStartTime || null;
     return swRunning || swPaused;
@@ -498,6 +499,7 @@ function swClearState() {
   swSegments = [];
   swSessionStartTime = null;
   switchReminderDismissed = false;
+  limitDismissedSides = {};
   swSideOffset = { links: 0, rechts: 0, beide: 0 };
   if (switchAlarmTimeout) { clearTimeout(switchAlarmTimeout); switchAlarmTimeout = null; }
 }
@@ -719,7 +721,7 @@ function openModal(type, existingEntry) {
       </div>
       <button class="sw-timer-btn" id="swTimerBtn" onclick="twShow()" style="display:${hasActive ? 'block' : 'none'}">⏱ Timer-Widget öffnen</button>
       <div id="switchReminder"></div>
-      <label>Wechsel-Intervall (Min, optional)</label>
+      <label>Session Zeitlimit je Brustseite (Min, optional)</label>
       <input type="number" id="mSwitchInterval" min="1" max="60" placeholder="z.B. 20" value="${localStorage.getItem('baby_tracker_switch_interval') || '20'}">
       <input type="hidden" id="mSide" value="${side}">`;
   } else if (type === 'wickeln') {
@@ -1081,11 +1083,6 @@ function swManualSwitch() {
   const oldSide = swSide;
   // Finalize current segment
   swFinalizeSegment();
-  // If interval was reached on old side, reset its accumulated time
-  if (switchReminderFired || switchReminderDismissed) {
-    const oldTotal = swSegments.filter(s => s.side === oldSide).reduce((sum, s) => sum + s.ms, 0);
-    swSideOffset[oldSide] = oldTotal;
-  }
   // Switch side
   const newSide = oldSide === 'links' ? 'rechts' : 'links';
   swSwitchSideUI(newSide);
@@ -1148,9 +1145,6 @@ function swSwitchBreast() {
     swPaused = true;
   }
   swFinalizeSegment();
-  // Interval was reached — reset old side's accumulated time
-  const oldTotal = swSegments.filter(s => s.side === oldSide).reduce((sum, s) => sum + s.ms, 0);
-  swSideOffset[oldSide] = oldTotal;
   const newSide = oldSide === 'links' ? 'rechts' : 'links';
   swSwitchSideUI(newSide);
   switchReminderFired = false;
@@ -1199,11 +1193,27 @@ function playBeep() {
 }
 
 function fireSwitchReminder() {
+  const sideDismissed = limitDismissedSides[swSide];
+  const anyDismissed = Object.keys(limitDismissedSides).length > 0;
+  if (sideDismissed) {
+    // This side was already dismissed — no beep, just show "Fertig"
+    switchReminderDismissed = true;
+    const twRem = document.getElementById('twReminder');
+    switchReminderDismissed = true;
+    swSaveState();
+    return;
+  }
   playBeep();
   switchReminderInterval = setInterval(playBeep, 10000);
   // Timer widget reminder
   const twRem = document.getElementById('twReminder');
-  if (twRem) twRem.innerHTML = '<div class="tw-reminder">Brustwechsel!<br><button class="tw-rem-ok" onclick="dismissSwitchReminder();twUpdate()">Trotzdem weitermachen</button></div>';
+  if (twRem) {
+    if (anyDismissed) {
+      twRem.innerHTML = '<div class="tw-reminder">Session Limit erreicht!<br><button class="tw-rem-ok" onclick="dismissSwitchReminder();twUpdate()">Trotzdem weitermachen</button></div>';
+    } else {
+      twRem.innerHTML = '<div class="tw-reminder">Brustwechsel!<br><button class="tw-rem-ok" onclick="dismissSwitchReminder();twUpdate()">Trotzdem weitermachen</button></div>';
+    }
+  }
   // Floating banner if timer widget is minimized
   const tw = document.getElementById('timerWidget');
   if (!tw || !tw.classList.contains('open')) {
@@ -1261,10 +1271,13 @@ function clearSwitchReminder() {
 }
 
 function dismissSwitchReminder() {
-  // Acknowledge reminder without switching breast — no new reminder until side changes
   clearSwitchReminder();
   switchReminderFired = true;
   switchReminderDismissed = true;
+  limitDismissedSides[swSide] = true;
+  // Keep "Fertig" button visible
+  const twRem = document.getElementById('twReminder');
+  if (twRem) twRem.innerHTML = '';
   swSaveState();
 }
 
@@ -1277,13 +1290,11 @@ function hideSwitchBanner() {
 // --- Timer Widget ---
 const TW_CIRCUMFERENCE = 2 * Math.PI * 90; // r=90 from SVG
 
-// Synchronized blink for warning ring + switch button
+// Synchronized blink toggle (used by twUpdate for ring + switch button)
 let twBlinkOn = true;
 setInterval(() => {
   twBlinkOn = !twBlinkOn;
-  const ring = document.getElementById('twRingProgress');
   const switchBtn = document.getElementById('twSwitchBtn');
-  if (ring) ring.classList.toggle('blink-off', !twBlinkOn && ring.classList.contains('warning') && !ring.classList.contains('warning-dismissed'));
   if (switchBtn) switchBtn.classList.toggle('blink-off', !twBlinkOn && switchBtn.classList.contains('switch-blink'));
 }, 1000);
 
@@ -1299,10 +1310,18 @@ function twShow() {
   document.getElementById('timerWidget').classList.add('open');
   hideSwitchBanner();
   // Restore reminder if still active
-  if (switchReminderFired && !switchReminderDismissed) {
+  if (switchReminderFired) {
     const twRem = document.getElementById('twReminder');
     if (twRem && !twRem.innerHTML.trim()) {
-      twRem.innerHTML = '<div class="tw-reminder">Brustwechsel!<br><button class="tw-rem-ok" onclick="dismissSwitchReminder();twUpdate()">Trotzdem weitermachen</button></div>';
+      const sideDismissed = limitDismissedSides[swSide];
+      const anyDismissed = Object.keys(limitDismissedSides).length > 0;
+      if (switchReminderDismissed || sideDismissed) {
+        // Already dismissed — no reminder needed, "Fertig" button is in controls
+      } else if (anyDismissed) {
+        twRem.innerHTML = '<div class="tw-reminder">Session Limit erreicht!<br><button class="tw-rem-ok" onclick="dismissSwitchReminder();twUpdate()">Trotzdem weitermachen</button></div>';
+      } else {
+        twRem.innerHTML = '<div class="tw-reminder">Brustwechsel!<br><button class="tw-rem-ok" onclick="dismissSwitchReminder();twUpdate()">Trotzdem weitermachen</button></div>';
+      }
     }
   }
   twUpdate();
@@ -1352,13 +1371,30 @@ function twUpdate() {
       const progress = Math.min(effectiveSide / (interval * 60000), 1);
       ring.style.strokeDasharray = TW_CIRCUMFERENCE;
       ring.style.strokeDashoffset = TW_CIRCUMFERENCE * (1 - progress);
-      ring.classList.toggle('warning', switchReminderFired);
-      ring.classList.toggle('warning-dismissed', switchReminderFired && switchReminderDismissed);
+      const limitReached = limitDismissedSides[swSide] && progress >= 1;
+      const isWarning = switchReminderFired || limitReached;
+      const isDismissed = (switchReminderFired && switchReminderDismissed) || limitReached;
+      // Ring color: gold when warning, blink only if not dismissed
+      if (isWarning) {
+        const shouldBlink = !isDismissed;
+        ring.style.stroke = (shouldBlink && !twBlinkOn) ? 'rgba(232,164,74,.35)' : '#e8a44a';
+      } else {
+        ring.style.stroke = '';
+      }
     } else {
       ring.classList.add('hidden');
       ring.style.strokeDasharray = TW_CIRCUMFERENCE;
       ring.style.strokeDashoffset = 0;
     }
+  }
+
+  // Session limit label
+  const limitLabel = document.getElementById('twLimitLabel');
+  if (limitLabel) {
+    const interval = parseInt(localStorage.getItem('baby_tracker_switch_interval'));
+    const sideMs = interval ? Math.max(0, (swSegments.filter(s => s.side === swSide).reduce((sum, s) => sum + s.ms, 0) + curMs) - (swSideOffset[swSide] || 0)) : 0;
+    const currentSideLimitReached = interval && sideMs >= interval * 60000;
+    limitLabel.style.display = (limitDismissedSides[swSide] && currentSideLimitReached) || (switchReminderFired && switchReminderDismissed) ? '' : 'none';
   }
 
   // Pause button — only update DOM when state actually changed to avoid eating click events
@@ -1371,14 +1407,14 @@ function twUpdate() {
     }
   }
 
-  // Switch button — enabled when paused OR when switch reminder fired (even if dismissed)
+  // Switch button — always enabled during live session
   const switchBtn = document.getElementById('twSwitchBtn');
   if (switchBtn) {
-    switchBtn.disabled = !swPaused && !switchReminderFired;
-    // Orange border: always when reminder fired and enabled
-    switchBtn.classList.toggle('switch-alert', switchReminderFired && !switchBtn.disabled);
+    switchBtn.disabled = false;
+    // Orange border: when reminder fired
+    switchBtn.classList.toggle('switch-alert', switchReminderFired);
     // Blink: only when not dismissed, OR when paused after dismiss
-    const shouldBlink = switchReminderFired && !switchBtn.disabled && (!switchReminderDismissed || swPaused);
+    const shouldBlink = switchReminderFired && (!switchReminderDismissed || swPaused);
     switchBtn.classList.toggle('switch-blink', shouldBlink);
   }
 
@@ -1400,11 +1436,7 @@ function twTogglePause() {
 }
 
 function twSwitch() {
-  if (switchReminderFired) {
-    swSwitchBreast();
-  } else {
-    swManualSwitch();
-  }
+  swSwitchBreast();
   twUpdate();
 }
 
