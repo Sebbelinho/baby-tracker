@@ -255,7 +255,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 08:34</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 08:51</span></i>
   <div id="clock"></div>
 </header>
 
@@ -1205,6 +1205,8 @@ function twUpdate() {
   const tw = document.getElementById('timerWidget');
   if (!tw || !tw.classList.contains('open')) return;
 
+  // Refresh timestamp to avoid stale swNow from previous tick
+  swNow = Date.now();
   // Compute all values from a single snapshot of currentSegmentMs
   const curMs = swCurrentSegmentMs();
   const segTotals = { links: 0, rechts: 0, beide: 0 };
