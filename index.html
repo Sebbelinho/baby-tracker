@@ -127,7 +127,7 @@
 
   /* Stopwatch pause */
   /* sw-pause defined above with sw-btn group */
-  .sw-indicator{font-size:.75rem;font-weight:700;font-variant-numeric:tabular-nums;animation:reminderBlink 1.5s ease-in-out infinite}
+  .sw-indicator{font-size:.75rem;font-weight:700;font-variant-numeric:tabular-nums;animation:reminderBlink 1.5s ease-in-out infinite;cursor:pointer}
   .side-row{display:flex;align-items:center;gap:.5rem;margin:.3rem 0}
   .side-btn{flex:0 0 80px;padding:.55rem .5rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
   .side-btn.active{border-color:var(--accent);background:var(--accent);color:#fff}
@@ -159,7 +159,14 @@
   .timer-btn{border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:600;transition:transform .15s,opacity .15s}
   .timer-btn:active{transform:scale(.9)}
   .timer-btn:disabled{opacity:.35;cursor:not-allowed}
-  .timer-btn-switch{width:56px;height:56px;font-size:1.4rem;background:rgba(255,255,255,.15);color:#fff}
+  .timer-btn-switch{width:56px;height:56px;background:rgba(255,255,255,.15);color:#fff;position:relative;overflow:visible}
+  .tw-switch-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:.55rem;font-weight:600;color:rgba(255,255,255,.7);white-space:nowrap;display:none;animation:livePulse 2s ease-in-out infinite}
+  .timer-btn-switch:not(:disabled) .tw-switch-label{display:block}
+  .tw-switch-icon{display:flex;flex-direction:column;align-items:center;gap:2px}
+  .tw-switch-icon span{display:block;width:18px;height:2px;background:#fff;position:relative}
+  .tw-switch-icon span::after{content:'';position:absolute;border-style:solid;border-color:transparent}
+  .tw-switch-icon span:first-child::after{right:-1px;top:-4px;border-width:0 0 5px 5px;border-bottom-color:#fff}
+  .tw-switch-icon span:last-child::after{left:-1px;bottom:-4px;border-width:5px 5px 0 0;border-top-color:#fff}
   .timer-btn-pause{width:64px;height:64px;background:var(--still);color:#fff;position:relative}
   .timer-btn-pause .tw-icon{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
   .timer-btn-pause .tw-pause-bars{display:flex;gap:5px}
@@ -172,6 +179,24 @@
   .tw-reminder button{margin:0 .3rem;padding:.45rem 1rem;border:none;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer}
   .tw-reminder .tw-rem-switch{background:#34c759;color:#fff}
   .tw-reminder .tw-rem-ok{background:rgba(255,255,255,.2);color:#fff}
+
+  /* Timer widget minimize */
+  .timer-widget{position:relative}
+  .timer-btn-minimize{position:absolute;top:.3rem;right:.3rem;background:none;border:none;color:rgba(255,255,255,.45);font-size:1.8rem;line-height:1;cursor:pointer;padding:.5rem;z-index:1}
+  .timer-btn-minimize:active{color:#fff}
+
+  /* Live session bar (visible on dashboard when session running) */
+  .live-session-bar{display:none;background:var(--still);color:#fff;border-radius:var(--radius);padding:.6rem 1rem;margin-bottom:.5rem;text-align:center;font-weight:700;font-size:.9rem;cursor:pointer;animation:livePulse 2s ease-in-out infinite;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  .live-session-bar.visible{display:block}
+  .live-session-bar small{font-weight:400;opacity:.8}
+  @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.7}}
+
+  /* Timer button in modal */
+  .sw-timer-btn{display:none;width:100%;padding:.55rem;border:none;border-radius:10px;background:var(--still);color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.3rem;animation:livePulse 2s ease-in-out infinite}
+
+  /* Switch banner (floating reminder when widget minimized) */
+  .switch-banner{position:fixed;top:0;left:0;right:0;z-index:140;background:var(--temp);color:#fff;text-align:center;padding:.75rem 1rem;font-weight:700;font-size:.95rem;cursor:pointer;animation:reminderBlink 1.5s ease-in-out infinite;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+  .switch-banner small{display:block;font-weight:400;font-size:.75rem;opacity:.8;margin-top:2px}
 
   /* Last feed summary */
   .last-feed-summary{max-width:500px;margin:.5rem auto;padding:0 1rem}
@@ -260,16 +285,19 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 08:56</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 19:14</span></i>
   <div id="clock"></div>
 </header>
 
 <div class="page-layout">
   <div class="page-left">
+    <div class="live-session-bar" id="liveSessionBar" onclick="twShow()">
+      ⏱ Live-Session: <span id="liveSessionTime">00:00</span> <small>(Tippen zum Öffnen)</small>
+    </div>
     <div class="actions">
       <button class="action-btn btn-stillen" id="btnStillen" onclick="openModal('stillen')">
         <span class="icon">🤱</span>Stillen
-        <span class="sw-indicator" id="swIndicator" style="display:none">⏱ <span id="swIndicatorTime">00:00</span></span>
+        <span class="sw-indicator" id="swIndicator" style="display:none" onclick="twShow();event.stopPropagation()">⏱ <span id="swIndicatorTime">00:00</span></span>
       </button>
       <button class="action-btn btn-wickeln" onclick="openModal('wickeln')">
         <span class="icon">👶</span>Wickeln
@@ -333,6 +361,7 @@
 <!-- Timer Widget -->
 <div class="timer-widget-overlay" id="timerWidget">
   <div class="timer-widget">
+    <button class="timer-btn-minimize" onclick="twMinimize()" aria-label="Minimieren">&times;</button>
     <div class="timer-side-label" id="twSideLabel"></div>
     <div class="timer-ring-container">
       <svg class="timer-ring" viewBox="0 0 200 200">
@@ -343,12 +372,17 @@
       <div class="timer-sides" id="twSides"></div>
     </div>
     <div class="timer-controls">
-      <button class="timer-btn timer-btn-switch" id="twSwitchBtn" onclick="twSwitch()">🔄</button>
+      <button class="timer-btn timer-btn-switch" id="twSwitchBtn" onclick="twSwitch()"><span class="tw-switch-icon"><span></span><span></span></span><span class="tw-switch-label">Wechsel</span></button>
       <button class="timer-btn timer-btn-pause" id="twPauseBtn" onclick="twTogglePause()"><span class="tw-icon"><span class="tw-pause-bars"><span></span><span></span></span></span></button>
       <button class="timer-btn timer-btn-stop" id="twStopBtn" onclick="twStop()"><span class="tw-stop-square"></span></button>
     </div>
     <div id="twReminder"></div>
   </div>
+</div>
+
+<!-- Switch banner (shown when timer widget minimized and switch reminder fires) -->
+<div class="switch-banner" id="switchBanner" style="display:none" onclick="twShow()">
+  &#x1F504; Brustwechsel! <small>(Tippen zum Öffnen)</small>
 </div>
 
 <!-- Chart overlay -->
@@ -526,6 +560,17 @@ function swGlobalTick() {
       ind.style.display = 'none';
     }
   }
+  // Update live session bar on dashboard
+  const liveBar = document.getElementById('liveSessionBar');
+  const liveTime = document.getElementById('liveSessionTime');
+  if (liveBar && liveTime) {
+    if (swRunning || swPaused) {
+      liveBar.classList.add('visible');
+      liveTime.textContent = swFormatTime(total);
+    } else {
+      liveBar.classList.remove('visible');
+    }
+  }
   // Update modal displays if open (only during active live session)
   const display = document.getElementById('swDisplay');
   if (display && (swRunning || swPaused)) display.textContent = swFormatTime(total);
@@ -565,6 +610,9 @@ setInterval(swGlobalTick, 250);
 
 // Restore on page load
 if (swLoadState()) {
+  // Disable ring transition for first render to avoid visual jump
+  const ring = document.getElementById('twRingProgress');
+  if (ring) { ring.style.transition = 'none'; requestAnimationFrame(() => { requestAnimationFrame(() => { ring.style.transition = ''; }); }); }
   swGlobalTick();
   if (swRunning) scheduleSwitchAlarm();
   if (swRunning || swPaused) twShow();
@@ -581,7 +629,7 @@ function openModal(type, existingEntry) {
   const hasActive = (type === 'stillen') && (swRunning || swPaused);
   const timeStr = existingEntry
     ? new Date(existingEntry.timestamp).toTimeString().slice(0, 8)
-    : (hasActive && swSessionStartTime) ? swSessionStartTime : now.toTimeString().slice(0, 8);
+    : ((hasActive || swSegments.length > 0) && swSessionStartTime) ? swSessionStartTime : now.toTimeString().slice(0, 8);
 
   const accentMap = { stillen: 'var(--still)', wickeln: 'var(--wickel)', temperatur: 'var(--temp)' };
   const iconMap = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
@@ -648,9 +696,10 @@ function openModal(type, existingEntry) {
         <button class="sw-btn sw-stop" id="swStopBtn" onclick="swStop()" style="${showStop}">■</button>
         <button class="sw-btn sw-reset" id="swResetBtn" onclick="swResetCurrentSegment()" style="${showStop}" title="Aktuelle Seite zurücksetzen">↺</button>
         <span class="stopwatch-display" id="swDisplay">${swTime}</span>
-        <button class="toggle-btn" id="swSwitchBtn" onclick="swManualSwitch()" ${hasActive && swPaused ? '' : 'disabled'} style="background:var(--still-bg);color:var(--still);font-size:.85rem;padding:.4rem .8rem;${hasActive ? '' : 'display:none'}">🔄 Wechsel</button>
+        <button class="toggle-btn" id="swSwitchBtn" onclick="swManualSwitch()" ${hasActive && swPaused ? '' : 'disabled'} style="background:var(--still-bg);color:var(--still);font-size:.85rem;padding:.4rem .8rem;${hasActive ? '' : 'display:none'}">Wechsel</button>
       </div>
-      <div id="switchReminder">${(hasActive && switchReminderFired) ? '<div class="switch-reminder">🔄 Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">🔄 Brust wechseln</button> <button class="sw-switch-btn" onclick="dismissSwitchReminder()" style="background:var(--text2)">OK</button></div>' : ''}</div>
+      <button class="sw-timer-btn" id="swTimerBtn" onclick="twShow()" style="display:${hasActive ? 'block' : 'none'}">⏱ Timer-Widget öffnen</button>
+      <div id="switchReminder">${(hasActive && switchReminderFired) ? '<div class="switch-reminder">Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">Brust wechseln</button> <button class="sw-switch-btn" onclick="dismissSwitchReminder()" style="background:var(--text2)">OK</button></div>' : ''}</div>
       <label>Wechsel-Intervall (Min, optional)</label>
       <input type="number" id="mSwitchInterval" min="1" max="60" placeholder="z.B. 20" value="${localStorage.getItem('baby_tracker_switch_interval') || '20'}">
       <input type="hidden" id="mSide" value="${side}">`;
@@ -883,6 +932,9 @@ function swUpdateModalUI() {
     switchBtn.disabled = !swPaused;
     switchBtn.style.display = (swRunning || swPaused) ? '' : 'none';
   }
+  // Timer widget button: visible during live session
+  const timerBtn = document.getElementById('swTimerBtn');
+  if (timerBtn) timerBtn.style.display = (swRunning || swPaused) ? 'block' : 'none';
 }
 
 function swSwitchSideUI(newSide) {
@@ -1122,10 +1174,16 @@ function fireSwitchReminder() {
   switchReminderInterval = setInterval(playBeep, 10000);
   // Visual reminder if modal is open
   const rem = document.getElementById('switchReminder');
-  if (rem) rem.innerHTML = '<div class="switch-reminder">🔄 Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">🔄 Brust wechseln</button> <button class="sw-switch-btn" onclick="dismissSwitchReminder()" style="background:var(--text2)">OK</button></div>';
+  if (rem) rem.innerHTML = '<div class="switch-reminder">Brustwechsel!<br><button class="sw-switch-btn" onclick="swSwitchBreast()">Brust wechseln</button> <button class="sw-switch-btn" onclick="dismissSwitchReminder()" style="background:var(--text2)">OK</button></div>';
   // Timer widget reminder
   const twRem = document.getElementById('twReminder');
-  if (twRem) twRem.innerHTML = '<div class="tw-reminder">🔄 Brustwechsel!<br><button class="tw-rem-switch" onclick="swSwitchBreast();twUpdate()">🔄 Wechseln</button><button class="tw-rem-ok" onclick="dismissSwitchReminder();twUpdate()">OK</button></div>';
+  if (twRem) twRem.innerHTML = '<div class="tw-reminder">Brustwechsel!<br><button class="tw-rem-switch" onclick="swSwitchBreast();twUpdate()">Wechseln</button><button class="tw-rem-ok" onclick="dismissSwitchReminder();twUpdate()">OK</button></div>';
+  // Floating banner if timer widget is minimized
+  const tw = document.getElementById('timerWidget');
+  if (!tw || !tw.classList.contains('open')) {
+    const banner = document.getElementById('switchBanner');
+    if (banner) banner.style.display = '';
+  }
   // System notification for background
   if ('Notification' in window && Notification.permission === 'granted') {
     try { new Notification('Brustwechsel!', { body: 'Zeit die Seite zu wechseln', tag: 'switch-reminder', renotify: true }); } catch(e) {}
@@ -1173,6 +1231,7 @@ function clearSwitchReminder() {
   if (rem) rem.innerHTML = '';
   const twRem = document.getElementById('twReminder');
   if (twRem) twRem.innerHTML = '';
+  hideSwitchBanner();
 }
 
 function dismissSwitchReminder() {
@@ -1183,6 +1242,11 @@ function dismissSwitchReminder() {
   swSaveState();
 }
 
+
+function hideSwitchBanner() {
+  const b = document.getElementById('switchBanner');
+  if (b) b.style.display = 'none';
+}
 
 // --- Timer Widget ---
 const TW_CIRCUMFERENCE = 2 * Math.PI * 90; // r=90 from SVG
@@ -1197,7 +1261,12 @@ function swFormatTimeHMS(ms) {
 
 function twShow() {
   document.getElementById('timerWidget').classList.add('open');
+  hideSwitchBanner();
   twUpdate();
+}
+
+function twMinimize() {
+  twHide();
 }
 
 function twHide() {
@@ -1250,11 +1319,14 @@ function twUpdate() {
     }
   }
 
-  // Pause button
+  // Pause button — only update DOM when state actually changed to avoid eating click events
   const pauseBtn = document.getElementById('twPauseBtn');
   if (pauseBtn) {
-    pauseBtn.innerHTML = swPaused ? '<span class="tw-icon"><span class="tw-play-arrow"></span></span>' : '<span class="tw-icon"><span class="tw-pause-bars"><span></span><span></span></span></span>';
-    pauseBtn.classList.toggle('is-paused', swPaused);
+    const wasPaused = pauseBtn.classList.contains('is-paused');
+    if (wasPaused !== swPaused) {
+      pauseBtn.innerHTML = swPaused ? '<span class="tw-icon"><span class="tw-play-arrow"></span></span>' : '<span class="tw-icon"><span class="tw-pause-bars"><span></span><span></span></span></span>';
+      pauseBtn.classList.toggle('is-paused', swPaused);
+    }
   }
 
   // Switch button — only enabled when paused
@@ -1284,8 +1356,12 @@ function twSwitch() {
 }
 
 function twStop() {
+  const modalOpen = document.getElementById('modalOverlay').classList.contains('open');
   swStop();
   twHide();
+  if (!modalOpen) {
+    openModal('stillen');
+  }
 }
 
 
