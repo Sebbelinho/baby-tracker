@@ -130,6 +130,10 @@
   /* sw-pause defined above with sw-btn group */
   .sw-indicator{font-size:.75rem;font-weight:700;font-variant-numeric:tabular-nums;animation:reminderBlink 1.5s ease-in-out infinite;cursor:pointer}
   .side-row{display:flex;align-items:center;gap:.5rem;margin:.3rem 0}
+  .side-order-row{display:flex;gap:.8rem;margin:.4rem 0 .2rem}
+  .side-order-row label{display:flex;align-items:center;gap:.3rem;font-size:.85rem;color:var(--text);cursor:pointer}
+  .side-order-row input[type=checkbox]{accent-color:var(--still);width:16px;height:16px}
+  .side-order-row label.disabled{opacity:.4;pointer-events:none}
   .side-btn{flex:0 0 80px;padding:.55rem .5rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
   .side-btn.active{border-color:var(--accent);background:var(--accent);color:#fff}
   .side-btn:disabled{opacity:.5;cursor:not-allowed}
@@ -312,7 +316,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 07.03.2026, 22:47</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 08.03.2026, 04:49</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -770,6 +774,10 @@ function openModal(type, existingEntry) {
         <input type="number" id="mDurBeide" class="side-input" min="0" max="120" placeholder="Min" value="${durB}" oninput="updateSideTime('Beide')">
         <span class="side-unit" id="sideTimeBeide">${fmtUnit(msB)}</span>
       </div>
+      <div class="side-order-row" id="sideOrderRow" style="${hasActive ? 'display:none' : ''}">
+        <label id="sideOrderLR" class="disabled"><input type="checkbox" id="cbOrderLR" onchange="pickSideOrder('LR')"> L → R</label>
+        <label id="sideOrderRL" class="disabled"><input type="checkbox" id="cbOrderRL" onchange="pickSideOrder('RL')"> R → L</label>
+      </div>
       <div class="stopwatch" style="margin-top:.5rem">
         <button class="sw-btn sw-start" id="swBtn" onclick="swStart()" style="${showStart}">▶</button>
         <button class="sw-btn ${swPaused ? 'sw-start' : 'sw-pause'}" id="swPauseBtn" onclick="${swPaused ? 'swResume()' : 'swPause()'}" style="${showPause}">${pauseLabel}</button>
@@ -810,6 +818,15 @@ function openModal(type, existingEntry) {
   </div>`;
 
   document.getElementById('modal').innerHTML = html;
+  // Initialize side order checkboxes for stillen
+  if (type === 'stillen') {
+    updateSideOrderState();
+    if (existingEntry && existingEntry.sideOrder && existingEntry.sideOrder.length > 1) {
+      const first = existingEntry.sideOrder[0];
+      if (first === 'links') document.getElementById('cbOrderLR').checked = true;
+      else if (first === 'rechts') document.getElementById('cbOrderRL').checked = true;
+    }
+  }
   document.getElementById('modalOverlay').classList.add('open');
 }
 
@@ -876,8 +893,8 @@ function saveModal() {
       swFinalizeSegment();
       swPaused = false;
     }
-    // When live session was active, derive ALL data from segments (authoritative source)
-    if (wasLiveSession && swSegments.length > 0) {
+    // When segments exist (live session or restored from edit), derive ALL data from segments
+    if (swSegments.length > 0) {
       const segTotals = { links: 0, rechts: 0, beide: 0 };
       swSegments.forEach(seg => { if (segTotals.hasOwnProperty(seg.side)) segTotals[seg.side] += seg.ms; });
       data.durationLinks = Math.round(segTotals.links / 60000);
@@ -927,7 +944,24 @@ function saveModal() {
       data.secLinks = msLinks > 0 ? Math.floor(msLinks / 1000) : undefined;
       data.secRechts = msRechts > 0 ? Math.floor(msRechts / 1000) : undefined;
       data.secBeide = msBeide > 0 ? Math.floor(msBeide / 1000) : undefined;
-      data.sideOrder = undefined;
+      // Side order from checkboxes or preserved from original entry
+      const cbLR = document.getElementById('cbOrderLR');
+      const cbRL = document.getElementById('cbOrderRL');
+      const orderRequired = (msLinks > 0 && msRechts > 0) || msBeide > 0;
+      const orderSelected = (cbLR && cbLR.checked) || (cbRL && cbRL.checked);
+      if (orderRequired && !orderSelected) {
+        // Allow if editing and original already has sideOrder
+        const hasOrigOrder = editingId && (() => { const o = loadEntries().find(e => e.id === editingId); return o && o.sideOrder && o.sideOrder.length > 1; })();
+        if (!hasOrigOrder) { alert('Bitte Seitenreihenfolge wählen (L → R oder R → L)'); return; }
+      }
+      if (cbLR && cbLR.checked) {
+        data.sideOrder = ['links', 'rechts'];
+      } else if (cbRL && cbRL.checked) {
+        data.sideOrder = ['rechts', 'links'];
+      } else if (editingId) {
+        const origEntry = loadEntries().find(e => e.id === editingId);
+        if (origEntry && origEntry.sideOrder) data.sideOrder = origEntry.sideOrder;
+      }
     }
     // Clear stopwatch after saving
     clearSwitchReminder();
@@ -962,6 +996,35 @@ function pickSide(side) {
     swFinalizeSegment();
   }
   if (!swRunning) swSide = side;
+  updateSideOrderState();
+}
+
+function pickSideOrder(which) {
+  const cbLR = document.getElementById('cbOrderLR');
+  const cbRL = document.getElementById('cbOrderRL');
+  if (!cbLR || !cbRL) return;
+  // Only one can be checked at a time
+  if (which === 'LR') cbRL.checked = false;
+  else cbLR.checked = false;
+}
+
+function updateSideOrderState() {
+  const rowLR = document.getElementById('sideOrderLR');
+  const rowRL = document.getElementById('sideOrderRL');
+  if (!rowLR || !rowRL) return;
+  const msL = parseSideTimeMs('sideTimeLinks');
+  const msR = parseSideTimeMs('sideTimeRechts');
+  const msB = parseSideTimeMs('sideTimeBeide');
+  const hasLR = msL > 0 && msR > 0;
+  const hasBeide = msB > 0;
+  const enabled = hasLR || hasBeide;
+  rowLR.classList.toggle('disabled', !enabled);
+  rowRL.classList.toggle('disabled', !enabled);
+  const cbLR = document.getElementById('cbOrderLR');
+  const cbRL = document.getElementById('cbOrderRL');
+  cbLR.disabled = !enabled;
+  cbRL.disabled = !enabled;
+  if (!enabled) { cbLR.checked = false; cbRL.checked = false; }
 }
 
 function parseSideTimeMs(labelId) {
@@ -984,6 +1047,7 @@ function updateSideTime(sideName) {
     const totalMs = parseSideTimeMs('sideTimeLinks') + parseSideTimeMs('sideTimeRechts') + parseSideTimeMs('sideTimeBeide');
     display.textContent = totalMs > 0 ? swFormatTime(totalMs) : '00:00';
   }
+  updateSideOrderState();
 }
 
 function swUpdateModalUI() {
