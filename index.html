@@ -207,6 +207,7 @@
   .feed-sep{color:var(--text2)}
   .feed-ago{color:var(--text2);font-size:.8rem;margin-left:auto}
   .entry-side-order{font-size:.75rem;color:var(--text2);margin-top:2px}
+  .entry-import-label{display:inline-block;font-size:.65rem;font-weight:600;color:#34c759;border:1.5px solid #34c759;border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:middle;line-height:1.4}
 
   /* Settings button */
   .settings-btn{position:absolute;right:1rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text2);font-size:1.3rem;padding:.3rem;display:flex;align-items:center;justify-content:center;transition:transform .3s}
@@ -306,7 +307,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 08.03.2026, 05:24</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 08.03.2026, 05:31</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -1724,7 +1725,7 @@ function renderEntries() {
       html += `<div class="entry">
         <div class="entry-icon ${iconClass}">${iconSymbols[e.type]}</div>
         <div class="entry-body">
-          <div class="entry-time">${time}</div>
+          <div class="entry-time">${time}${e.imported ? '<span class="entry-import-label">import</span>' : ''}</div>
           <div class="entry-detail">${detail}</div>
           ${e.notes ? `<div class="entry-notes">${escHtml(e.notes)}</div>` : ''}
         </div>
@@ -2011,6 +2012,8 @@ function importData() {
         const remote = JSON.parse(ev.target.result);
         if (!Array.isArray(remote)) throw new Error('Ungültiges Format');
         const local = loadEntries();
+        const localIds = new Set(local.map(e => e.id));
+        remote.forEach(e => { if (!localIds.has(e.id)) e.imported = true; });
         const { merged, added } = mergeEntries(local, remote);
         saveEntries(merged);
         renderEntries();
