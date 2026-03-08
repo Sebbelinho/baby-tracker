@@ -12,14 +12,5 @@
       "type": "image/svg+xml",
       "purpose": "any"
     }
-  ],
-  "file_handlers": [
-    {
-      "action": "./index.html",
-      "accept": {
-        "application/json": [".json", ".babytracker"],
-        "text/plain": [".txt", ".babytracker"]
-      }
-    }
   ]
 }
