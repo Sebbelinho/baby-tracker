@@ -17,7 +17,8 @@
     {
       "action": "./index.html",
       "accept": {
-        "application/json": [".json"]
+        "application/json": [".json"],
+        "text/plain": [".txt"]
       }
     }
   ]
