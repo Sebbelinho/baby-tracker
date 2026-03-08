@@ -17,8 +17,8 @@
     {
       "action": "./index.html",
       "accept": {
-        "application/json": [".json"],
-        "text/plain": [".txt"]
+        "application/json": [".json", ".babytracker"],
+        "text/plain": [".txt", ".babytracker"]
       }
     }
   ]
