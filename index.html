@@ -95,20 +95,10 @@
   .export-bar{text-align:center;padding:1rem;display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
   .export-btn{background:var(--surface);border:2px solid var(--bg);border-radius:10px;padding:.6rem 1.2rem;font-size:.9rem;font-weight:600;color:var(--text);cursor:pointer;box-shadow:var(--shadow)}
 
-  /* QR modal content */
-  .qr-container{display:flex;flex-direction:column;align-items:center;gap:1rem;padding:1rem 0}
-  .qr-container canvas{border-radius:12px;max-width:280px;width:100%;height:auto}
-  .qr-hint{font-size:.85rem;color:var(--text2);text-align:center}
-  .qr-pages{display:flex;align-items:center;gap:1rem;font-size:.9rem;font-weight:600}
-  .qr-pages button{width:40px;height:40px;border-radius:50%;border:2px solid var(--bg);background:var(--surface);color:var(--text);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
-  .qr-pages button:disabled{opacity:.3;cursor:not-allowed}
-
-  /* Scan modal */
-  .scan-container{display:flex;flex-direction:column;align-items:center;gap:1rem}
-  .scan-container video{width:100%;max-width:350px;border-radius:12px;background:#000}
-  .scan-status{font-size:.9rem;color:var(--text2);text-align:center;min-height:1.5em}
-  .scan-success{color:#34c759;font-weight:600}
-  .scan-error{color:var(--danger);font-weight:600}
+  /* Import result */
+  .import-result{font-size:.9rem;text-align:center;min-height:1.5em;margin-top:.5rem}
+  .import-success{color:#34c759;font-weight:600}
+  .import-error{color:var(--danger);font-weight:600}
 
   /* Dashboard */
   .dashboard-toggle{display:flex;justify-content:center;gap:.4rem;padding:.75rem 1rem 0;max-width:500px;margin:0 auto}
@@ -316,7 +306,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 08.03.2026, 05:06</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 08.03.2026, 05:12</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -342,9 +332,8 @@
     <div class="last-feed-summary" id="lastFeedSummary"></div>
     <div class="last-feed-summary" id="lastDiaperSummary"></div>
     <div class="export-bar">
-      <button class="export-btn" onclick="exportData()">📥 JSON</button>
-      <button class="export-btn" onclick="showQR()">📤 QR teilen</button>
-      <button class="export-btn" onclick="startScan()">📷 QR scannen</button>
+      <button class="export-btn" onclick="exportData()">📤 Export</button>
+      <button class="export-btn" onclick="importData()">📥 Import</button>
     </div>
   </div>
   <div class="page-right">
@@ -456,9 +445,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="lzstring.min.js"></script>
-<script src="jsqr.min.js"></script>
 <script>
 const STORAGE_KEY = 'baby_tracker_entries';
 
@@ -1997,9 +1983,7 @@ function exportData() {
   URL.revokeObjectURL(a.href);
 }
 
-// --- QR Sync ---
-const QR_MAX_BYTES = 400; // small chunks = sparse QR = reliable camera scanning
-
+// --- Import / Merge ---
 function mergeEntries(local, remote) {
   const map = new Map(local.map(e => [e.id, e]));
   let added = 0;
@@ -2011,227 +1995,31 @@ function mergeEntries(local, remote) {
   return { merged, added };
 }
 
-function chunkDataForQR(entries) {
-  const json = JSON.stringify(entries);
-  const compressed = LZString.compressToEncodedURIComponent(json);
-  const chunks = [];
-  for (let i = 0; i < compressed.length; i += QR_MAX_BYTES) {
-    chunks.push(compressed.slice(i, i + QR_MAX_BYTES));
-  }
-  return chunks;
-}
-
-let qrChunks = [];
-let qrPage = 0;
-
-function showQR() {
-  const entries = loadEntries();
-  if (!entries.length) { alert('Keine Daten zum Teilen'); return; }
-  qrChunks = chunkDataForQR(entries);
-  qrPage = 0;
-  renderQRModal();
-}
-
-function renderQRModal() {
-  const total = qrChunks.length;
-  const payload = `BT:${qrPage + 1}/${total}:${qrChunks[qrPage]}`;
-
-  let html = `<h2>📤 QR-Code teilen</h2><div class="qr-container">`;
-  html += `<div id="qrCanvas" style="display:inline-block"></div>`;
-  if (total > 1) {
-    html += `<div class="qr-pages">
-      <button onclick="qrPrev()" ${qrPage === 0 ? 'disabled' : ''}>◀</button>
-      <span>Seite ${qrPage + 1} von ${total}</span>
-      <button onclick="qrNext()" ${qrPage === total - 1 ? 'disabled' : ''}>▶</button>
-    </div>
-    <p class="qr-hint">Alle ${total} QR-Codes nacheinander scannen</p>`;
-  } else {
-    html += `<p class="qr-hint">Auf dem anderen Gerät scannen</p>`;
-  }
-  html += `</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Schließen</button></div>`;
-
-  document.getElementById('modal').style.setProperty('--accent', 'var(--still)');
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('open');
-
-  // Render QR code using qrcodejs library
-  setTimeout(() => {
-    const container = document.getElementById('qrCanvas');
-    new QRCode(container, {
-      text: payload,
-      width: 300,
-      height: 300,
-      colorDark: '#000000',
-      colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.M
-    });
-  }, 50);
-}
-
-function qrPrev() { if (qrPage > 0) { qrPage--; renderQRModal(); } }
-function qrNext() { if (qrPage < qrChunks.length - 1) { qrPage++; renderQRModal(); } }
-
-// --- QR Scanner (jsQR — works in all browsers) ---
-let scanStream = null;
-let scanAnimFrame = null;
-let scanCanvas = null;
-let scanCtx = null;
-let receivedChunks = {};
-let expectedTotal = 0;
-
-function startScan() {
-  receivedChunks = {};
-  expectedTotal = 0;
-
-  let html = `<h2>📷 QR-Code scannen</h2>
-    <div class="scan-container">
-      <video id="scanVideo" autoplay playsinline muted style="display:none"></video>
-      <canvas id="scanCanvas" style="width:100%;max-width:350px;border-radius:12px"></canvas>
-      <p class="scan-status" id="scanStatus">Kamera wird gestartet...</p>
-      <p class="scan-status" id="scanDebug" style="font-size:.7rem;color:var(--text2);margin-top:.3rem"></p>
-    </div>
-    <div class="modal-actions"><button class="btn-cancel" onclick="stopScan();closeModal()">Abbrechen</button></div>`;
-
-  document.getElementById('modal').style.setProperty('--accent', 'var(--wickel)');
-  document.getElementById('modal').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('open');
-
-  scanCanvas = document.getElementById('scanCanvas');
-  scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
-
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } })
-    .then(stream => {
-      scanStream = stream;
-      const video = document.getElementById('scanVideo');
-      if (!video) { stopScan(); return; }
-      video.srcObject = stream;
-      video.play();
-      video.addEventListener('loadedmetadata', () => {
-        scanCanvas.width = video.videoWidth;
-        scanCanvas.height = video.videoHeight;
-        document.getElementById('scanStatus').textContent = 'QR-Code vor die Kamera halten...';
-        const dbg = document.getElementById('scanDebug');
-        if (dbg) dbg.textContent = `Video: ${video.videoWidth}x${video.videoHeight} | Detector: ${barcodeDetector ? 'native' : 'jsQR'}`;
-        scanLoop();
-      });
-    })
-    .catch(err => {
-      const status = document.getElementById('scanStatus');
-      if (status) {
-        status.className = 'scan-status scan-error';
-        status.textContent = 'Kamera-Zugriff verweigert: ' + err.message;
+function importData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const remote = JSON.parse(ev.target.result);
+        if (!Array.isArray(remote)) throw new Error('Ungültiges Format');
+        const local = loadEntries();
+        const { merged, added } = mergeEntries(local, remote);
+        saveEntries(merged);
+        renderEntries();
+        updateDashboard();
+        alert(`Import erfolgreich! ${added} neue Einträge hinzugefügt. Gesamt: ${merged.length}`);
+      } catch (err) {
+        alert('Fehler beim Import: Ungültige JSON-Datei');
       }
-    });
-}
-
-let barcodeDetector = null;
-let scanBusy = false;
-if ('BarcodeDetector' in window) {
-  barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
-}
-
-function handleScanData(data) {
-  if (!data) return;
-  if (!data.startsWith('BT:')) {
-    const status = document.getElementById('scanStatus');
-    if (status) status.textContent = 'QR erkannt, aber kein Baby-Tracker-Code. Richtigen QR zeigen...';
-    return;
-  }
-  processScanResult(data);
-}
-
-let scanFrameCount = 0;
-
-function scanLoop() {
-  const video = document.getElementById('scanVideo');
-  if (!video || !scanStream || video.readyState < 2) {
-    if (scanStream) scanAnimFrame = requestAnimationFrame(scanLoop);
-    return;
-  }
-
-  scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
-  scanFrameCount++;
-
-  const dbg = document.getElementById('scanDebug');
-
-  // Try native BarcodeDetector on video element directly
-  if (barcodeDetector && !scanBusy) {
-    scanBusy = true;
-    barcodeDetector.detect(video).then(codes => {
-      scanBusy = false;
-      if (codes.length > 0) {
-        if (dbg) dbg.textContent = `Native erkannt: ${codes[0].rawValue.substring(0, 40)}...`;
-        handleScanData(codes[0].rawValue);
-      }
-    }).catch(() => { scanBusy = false; });
-  }
-
-  // Always also try jsQR as second detector
-  const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
-
-  if (dbg && scanFrameCount % 30 === 0) {
-    dbg.textContent = `Frames: ${scanFrameCount} | native: ${barcodeDetector ? 'ja' : 'nein'} | jsQR: ${code ? 'ja' : 'nein'} | ${scanCanvas.width}x${scanCanvas.height}`;
-  }
-
-  if (code && code.data) {
-    if (dbg) dbg.textContent = `jsQR erkannt: ${code.data.substring(0, 40)}...`;
-    handleScanData(code.data);
-  }
-
-  if (scanStream) scanAnimFrame = requestAnimationFrame(scanLoop);
-}
-
-function processScanResult(raw) {
-  if (!raw.startsWith('BT:')) return;
-  const match = raw.match(/^BT:(\d+)\/(\d+):(.+)$/);
-  if (!match) return;
-
-  const page = parseInt(match[1]);
-  const total = parseInt(match[2]);
-  const data = match[3];
-  expectedTotal = total;
-  receivedChunks[page] = data;
-
-  const received = Object.keys(receivedChunks).length;
-  const status = document.getElementById('scanStatus');
-
-  if (received < total) {
-    status.className = 'scan-status';
-    status.textContent = `${received} von ${total} QR-Codes gescannt — nächsten zeigen...`;
-    return;
-  }
-
-  // All chunks received — merge
-  let compressed = '';
-  for (let i = 1; i <= total; i++) compressed += receivedChunks[i];
-
-  try {
-    const json = LZString.decompressFromEncodedURIComponent(compressed);
-    const remote = JSON.parse(json);
-    const local = loadEntries();
-    const { merged, added } = mergeEntries(local, remote);
-    saveEntries(merged);
-    renderEntries();
-
-    status.className = 'scan-status scan-success';
-    status.textContent = `Sync erfolgreich! ${added} neue Einträge hinzugefügt. Gesamt: ${merged.length}`;
-    stopScan();
-  } catch (e) {
-    status.className = 'scan-status scan-error';
-    status.textContent = 'Fehler beim Verarbeiten der Daten';
-  }
-}
-
-function stopScan() {
-  if (scanAnimFrame) cancelAnimationFrame(scanAnimFrame);
-  scanAnimFrame = null;
-  if (scanStream) {
-    scanStream.getTracks().forEach(t => t.stop());
-    scanStream = null;
-  }
-  scanCanvas = null;
-  scanCtx = null;
+    };
+    reader.readAsText(file);
+  };
+  input.click();
 }
 
 // --- Dashboard Charts ---
