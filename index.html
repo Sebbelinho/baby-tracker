@@ -316,7 +316,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 08:14</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 08:31</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -724,6 +724,7 @@ if (swLoadState()) {
 // --- Modal ---
 let currentType = null;
 let editingId = null;
+let modalInitialTime = null;
 
 function openModal(type, existingEntry) {
   currentType = type;
@@ -737,6 +738,8 @@ function openModal(type, existingEntry) {
   const dateStr = existingEntry
     ? entryDate.toISOString().slice(0, 10)
     : now.toISOString().slice(0, 10);
+
+  modalInitialTime = (!existingEntry && !hasActive && swSegments.length === 0) ? timeStr : null;
 
   const accentMap = { stillen: 'var(--still)', wickeln: 'var(--wickel)', temperatur: 'var(--temp)' };
   const iconMap = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
@@ -888,6 +891,30 @@ function pickToggle(btn, hiddenId) {
   document.getElementById(hiddenId).value = btn.dataset.val;
 }
 
+function buildStillenDataFromSegments(fallbackSide) {
+  const segTotals = { links: 0, rechts: 0, beide: 0 };
+  swSegments.forEach(seg => { if (segTotals.hasOwnProperty(seg.side)) segTotals[seg.side] += seg.ms; });
+  const d = {};
+  d.durationLinks = Math.round(segTotals.links / 60000);
+  d.durationRechts = Math.round(segTotals.rechts / 60000);
+  if (segTotals.beide > 0) d.durationBeide = Math.round(segTotals.beide / 60000);
+  d.durationMin = d.durationLinks + d.durationRechts + (d.durationBeide || 0);
+  if (segTotals.links > 0) d.secLinks = Math.floor(segTotals.links / 1000);
+  if (segTotals.rechts > 0) d.secRechts = Math.floor(segTotals.rechts / 1000);
+  if (segTotals.beide > 0) d.secBeide = Math.floor(segTotals.beide / 1000);
+  if (segTotals.links > 0 && segTotals.rechts > 0) d.side = 'beide';
+  else if (segTotals.links > 0) d.side = 'links';
+  else if (segTotals.rechts > 0) d.side = 'rechts';
+  else if (segTotals.beide > 0) d.side = 'beide';
+  else d.side = fallbackSide || 'beide';
+  const sideOrder = [];
+  swSegments.forEach(seg => {
+    if (sideOrder.length === 0 || sideOrder[sideOrder.length - 1] !== seg.side) sideOrder.push(seg.side);
+  });
+  if (sideOrder.length > 0) d.sideOrder = sideOrder;
+  return d;
+}
+
 function saveModal() {
   const timeVal = document.getElementById('mTime').value;
   const dateVal = document.getElementById('mDate').value;
@@ -910,29 +937,7 @@ function saveModal() {
     }
     // When segments exist (live session or restored from edit), derive ALL data from segments
     if (swSegments.length > 0) {
-      const segTotals = { links: 0, rechts: 0, beide: 0 };
-      swSegments.forEach(seg => { if (segTotals.hasOwnProperty(seg.side)) segTotals[seg.side] += seg.ms; });
-      data.durationLinks = Math.round(segTotals.links / 60000);
-      data.durationRechts = Math.round(segTotals.rechts / 60000);
-      if (segTotals.beide > 0) data.durationBeide = Math.round(segTotals.beide / 60000);
-      data.durationMin = data.durationLinks + data.durationRechts + (data.durationBeide || 0);
-      if (segTotals.links > 0) data.secLinks = Math.floor(segTotals.links / 1000);
-      if (segTotals.rechts > 0) data.secRechts = Math.floor(segTotals.rechts / 1000);
-      if (segTotals.beide > 0) data.secBeide = Math.floor(segTotals.beide / 1000);
-      // Determine side from actual usage
-      if (segTotals.links > 0 && segTotals.rechts > 0) data.side = 'beide';
-      else if (segTotals.links > 0) data.side = 'links';
-      else if (segTotals.rechts > 0) data.side = 'rechts';
-      else if (segTotals.beide > 0) data.side = 'beide';
-      else data.side = document.getElementById('mSide').value || 'beide';
-      // Side order
-      const sideOrder = [];
-      swSegments.forEach(seg => {
-        if (sideOrder.length === 0 || sideOrder[sideOrder.length - 1] !== seg.side) {
-          sideOrder.push(seg.side);
-        }
-      });
-      if (sideOrder.length > 0) data.sideOrder = sideOrder;
+      Object.assign(data, buildStillenDataFromSegments(document.getElementById('mSide').value));
     } else {
       // Manual entry: use MM:SS labels as authoritative source (preserves second precision)
       const msLinks = parseSideTimeMs('sideTimeLinks');
@@ -959,6 +964,12 @@ function saveModal() {
       data.secLinks = msLinks > 0 ? Math.floor(msLinks / 1000) : undefined;
       data.secRechts = msRechts > 0 ? Math.floor(msRechts / 1000) : undefined;
       data.secBeide = msBeide > 0 ? Math.floor(msBeide / 1000) : undefined;
+      // Shift timestamp back by total duration if time was not manually changed
+      const totalMs = msLinks + msRechts + msBeide;
+      if (!editingId && modalInitialTime && document.getElementById('mTime').value === modalInitialTime && totalMs > 0) {
+        const shifted = new Date(ts.getTime() - totalMs);
+        data.timestamp = shifted.toISOString();
+      }
       // Side order from checkboxes or preserved from original entry
       const cbLR = document.getElementById('cbOrderLR');
       const cbRL = document.getElementById('cbOrderRL');
@@ -1639,12 +1650,27 @@ function twSwitch() {
 
 function twStop() {
   twCountdownMode = false;
-  const modalOpen = document.getElementById('modalOverlay').classList.contains('open');
-  swStop();
-  twHide();
-  if (!modalOpen) {
-    openModal('stillen');
+  // Finalize running session
+  if (swRunning) {
+    stopwatchElapsed += Date.now() - stopwatchStart;
+    stopwatchStart = null;
+    swRunning = false;
   }
+  swFinalizeSegment();
+  swPaused = false;
+
+  if (swSegments.length > 0) {
+    const ts = swSessionStartTime
+      ? (() => { const p = swSessionStartTime.split(':').map(Number); const d = new Date(); d.setHours(p[0], p[1], p[2] || 0, 0); return d; })()
+      : new Date();
+    const data = { type: 'stillen', timestamp: ts.toISOString(), ...buildStillenDataFromSegments(swSide) };
+    addEntry(data);
+  }
+  clearSwitchReminder();
+  swClearState();
+  twHide();
+  // Close modal if it was open behind the widget
+  if (document.getElementById('modalOverlay').classList.contains('open')) closeModal();
 }
 
 
