@@ -145,13 +145,13 @@
   .timer-widget{display:flex;flex-direction:column;align-items:center;gap:1.2rem;padding:1.5rem;width:100%;max-width:340px}
   .timer-side-label{font-size:1rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.06em;opacity:.85}
   .timer-ring-container{position:relative;width:240px;height:240px}
-  .timer-ring{width:100%;height:100%;transform:rotate(-90deg)}
+  .timer-ring{width:100%;height:100%;transform:rotate(-90deg);pointer-events:none}
   .timer-ring-bg{fill:none;stroke:rgba(255,255,255,.12);stroke-width:6}
   .timer-ring-progress{fill:none;stroke:var(--still);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .25s linear}
 
   .timer-ring-progress.hidden{stroke:transparent}
   .timer-time{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.8rem;font-weight:200;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.02em;padding-bottom:1.2rem}
-  .timer-sides{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:3rem;gap:.6rem;font-size:.8rem;font-weight:500;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
+  .timer-sides{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:3rem;gap:.6rem;font-size:.8rem;font-weight:500;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums;pointer-events:none}
   .timer-sides .tw-side-active{color:var(--still);font-weight:700}
   .timer-time.paused{opacity:.5}
   .timer-controls{display:flex;gap:1rem;align-items:center}
@@ -182,7 +182,7 @@
 
   /* Timer widget minimize */
   .timer-widget{position:relative}
-  .timer-btn-minimize{position:absolute;top:.3rem;left:.3rem;background:none;border:none;color:rgba(255,255,255,.45);font-size:1.6rem;line-height:1;cursor:pointer;padding:.5rem;z-index:1}
+  .timer-btn-minimize{position:absolute;top:.3rem;left:.3rem;background:none;border:none;color:rgba(255,255,255,.7);font-size:1.8rem;font-weight:200;line-height:1;cursor:pointer;padding:.5rem;z-index:1}
   .timer-btn-minimize:active{color:#fff}
   .tw-limit-label{display:none;border:2px solid #e8a44a;color:#e8a44a;border-radius:8px;padding:.3rem .8rem;font-size:.75rem;font-weight:600;letter-spacing:.03em}
 
@@ -311,7 +311,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 07:01</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 07:26</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -395,6 +395,13 @@
       <input type="number" id="setLimitValue" min="1" max="60" placeholder="Min" oninput="saveSettings()">
     </div>
     <div class="setting-row">
+      <input type="checkbox" class="setting-check" id="setTimerSideMode" onchange="saveSettings()">
+      <div style="flex:1">
+        <label for="setTimerSideMode">Brustseitenzeit-Modus</label>
+        <div class="setting-desc">Timer zeigt die aktuelle Brustseitenzeit statt Gesamtzeit (antippen um zwischen abgelaufener und verbleibender Zeit zu wechseln)</div>
+      </div>
+    </div>
+    <div class="setting-row">
       <input type="checkbox" class="setting-check" id="setDiaperEnabled" onchange="toggleSettingDiaper()">
       <div style="flex:1">
         <label for="setDiaperValue">Wickel-Erinnerung</label>
@@ -427,7 +434,7 @@
         <circle class="timer-ring-bg" cx="100" cy="100" r="90"/>
         <circle class="timer-ring-progress" id="twRingProgress" cx="100" cy="100" r="90"/>
       </svg>
-      <div class="timer-time" id="twTime">00:00:00</div>
+      <div class="timer-time" id="twTime" onclick="twToggleCountdown()" style="cursor:pointer">00:00:00</div>
       <div class="timer-sides" id="twSides"></div>
     </div>
     <div class="timer-controls">
@@ -1417,6 +1424,7 @@ function hideSwitchBanner() {
 
 // --- Timer Widget ---
 const TW_CIRCUMFERENCE = 2 * Math.PI * 90; // r=90 from SVG
+let twCountdownMode = false; // false = elapsed, true = remaining
 
 // Synchronized blink toggle (used by twUpdate for ring + switch button)
 let twBlinkOn = true;
@@ -1484,10 +1492,22 @@ function twUpdate() {
   if (curMs > 0 && swSide && segTotals.hasOwnProperty(swSide)) segTotals[swSide] += curMs;
   const total = segSum + curMs;
 
-  // Total time
+  // Total time / Side time display
   const timeEl = document.getElementById('twTime');
   if (timeEl) {
-    timeEl.textContent = swFormatTimeHMS(total);
+    const s = loadSettings();
+    if (s.timerSideMode) {
+      const sideMs = segTotals[swSide] || 0;
+      const interval = getEffectiveInterval();
+      if (twCountdownMode && interval) {
+        const remaining = interval * 60000 - sideMs;
+        timeEl.textContent = (remaining > 0 ? '-' : '') + swFormatTimeHMS(Math.abs(remaining));
+      } else {
+        timeEl.textContent = swFormatTimeHMS(sideMs);
+      }
+    } else {
+      timeEl.textContent = swFormatTimeHMS(total);
+    }
     timeEl.classList.toggle('paused', swPaused);
   }
 
@@ -1565,6 +1585,15 @@ function twUpdate() {
   }
 }
 
+function twToggleCountdown() {
+  const s = loadSettings();
+  if (!s.timerSideMode) return;
+  const interval = getEffectiveInterval();
+  if (!interval) return;
+  twCountdownMode = !twCountdownMode;
+  twUpdate();
+}
+
 function twTogglePause() {
   if (swRunning) swPause();
   else if (swPaused) swResume();
@@ -1577,6 +1606,7 @@ function twSwitch() {
 }
 
 function twStop() {
+  twCountdownMode = false;
   const modalOpen = document.getElementById('modalOverlay').classList.contains('open');
   swStop();
   twHide();
@@ -2284,6 +2314,7 @@ function saveSettings() {
   const s = loadSettings();
   s.limitEnabled = document.getElementById('setLimitEnabled').checked;
   s.limitValue = parseInt(document.getElementById('setLimitValue').value) || 0;
+  s.timerSideMode = document.getElementById('setTimerSideMode').checked;
   s.diaperEnabled = document.getElementById('setDiaperEnabled').checked;
   s.diaperValue = parseFloat(document.getElementById('setDiaperValue').value) || 0;
   localStorage.setItem('baby_tracker_settings', JSON.stringify(s));
@@ -2305,6 +2336,7 @@ function openSettings() {
   document.getElementById('setLimitEnabled').checked = !!s.limitEnabled;
   document.getElementById('setLimitValue').value = s.limitValue || '';
   document.getElementById('setLimitValue').disabled = !s.limitEnabled;
+  document.getElementById('setTimerSideMode').checked = !!s.timerSideMode;
   document.getElementById('setDiaperEnabled').checked = !!s.diaperEnabled;
   document.getElementById('setDiaperValue').value = s.diaperValue || '';
   document.getElementById('setDiaperValue').disabled = !s.diaperEnabled;
