@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baby-tracker-v2';
+const CACHE_NAME = 'baby-tracker-v3';
 const ASSETS = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', (e) => {
@@ -11,6 +11,18 @@ self.addEventListener('activate', (e) => {
     Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
   ));
   self.clients.claim();
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      if (clientList.length > 0) {
+        return clientList[0].focus();
+      }
+      return clients.openWindow('./');
+    })
+  );
 });
 
 self.addEventListener('fetch', (e) => {

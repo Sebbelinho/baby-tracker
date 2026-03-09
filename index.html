@@ -318,7 +318,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 22:11</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 22:22</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -1432,12 +1432,11 @@ function fireSwitchReminder() {
   if (!tw || !tw.classList.contains('open')) {
     twShow();
   }
-  // System notification for background (click to focus app)
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      const n = new Notification('Brustwechsel!', { body: 'Zeit die Seite zu wechseln', tag: 'switch-reminder', renotify: true });
-      n.onclick = () => { window.focus(); twShow(); n.close(); };
-    } catch(e) {}
+  // System notification via Service Worker (required for Android PWA)
+  if ('Notification' in window && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(reg => {
+      reg.showNotification('Brustwechsel!', { body: 'Zeit die Seite zu wechseln', tag: 'switch-reminder', renotify: true });
+    }).catch(() => {});
   }
   swSaveState();
 }
