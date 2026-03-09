@@ -49,7 +49,10 @@
   @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
   .modal h2{font-size:1.2rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
   .modal label{display:block;font-size:.85rem;font-weight:600;color:var(--text2);margin:1rem 0 .4rem;text-transform:uppercase;letter-spacing:.04em}
-  .modal input[type="time"],.modal input[type="number"],.modal textarea{width:100%;padding:.7rem;border:2px solid var(--bg);border-radius:10px;font-size:1rem;background:var(--bg);color:var(--text);font-family:inherit}
+  .modal input[type="date"],.modal input[type="time"],.modal input[type="number"],.modal textarea{width:100%;padding:.7rem;border:2px solid var(--bg);border-radius:10px;font-size:1rem;background:var(--bg);color:var(--text);font-family:inherit}
+  .modal .datetime-row{display:flex;gap:.5rem}
+  .modal .datetime-row input[type="date"]{flex:1.2}
+  .modal .datetime-row input[type="time"]{flex:1}
   .modal input:focus,.modal textarea:focus{outline:none;border-color:var(--accent)}
   .modal textarea{resize:vertical;min-height:60px}
   .toggle-group{display:flex;gap:.5rem}
@@ -308,7 +311,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 08.03.2026, 06:57</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 06:36</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -704,9 +707,13 @@ function openModal(type, existingEntry) {
   editingId = existingEntry ? existingEntry.id : null;
   const now = new Date();
   const hasActive = (type === 'stillen') && (swRunning || swPaused);
+  const entryDate = existingEntry ? new Date(existingEntry.timestamp) : null;
   const timeStr = existingEntry
-    ? new Date(existingEntry.timestamp).toTimeString().slice(0, 8)
+    ? entryDate.toTimeString().slice(0, 8)
     : ((hasActive || swSegments.length > 0) && swSessionStartTime) ? swSessionStartTime : now.toTimeString().slice(0, 8);
+  const dateStr = existingEntry
+    ? entryDate.toISOString().slice(0, 10)
+    : now.toISOString().slice(0, 10);
 
   const accentMap = { stillen: 'var(--still)', wickeln: 'var(--wickel)', temperatur: 'var(--temp)' };
   const iconMap = { stillen: '🤱', wickeln: '👶', temperatur: '🌡️' };
@@ -714,7 +721,7 @@ function openModal(type, existingEntry) {
   document.getElementById('modal').style.setProperty('--accent', accentMap[type]);
 
   let html = `<h2>${iconMap[type]} ${titleMap[type]}${editingId ? '<span class="editing-badge">Bearbeiten</span>' : ''}</h2>`;
-  html += `<label>Uhrzeit</label><input type="time" id="mTime" step="1" value="${timeStr}">`;
+  html += `<label>Datum & Uhrzeit</label><div class="datetime-row"><input type="date" id="mDate" value="${dateStr}"><input type="time" id="mTime" step="1" value="${timeStr}"></div>`;
 
   if (type === 'stillen') {
     const hasSegments = swSegments.length > 0;
@@ -860,20 +867,12 @@ function pickToggle(btn, hiddenId) {
 
 function saveModal() {
   const timeVal = document.getElementById('mTime').value;
-  const now = new Date();
+  const dateVal = document.getElementById('mDate').value;
   const timeParts = timeVal.split(':').map(Number);
   const [h, m] = timeParts;
   const sec = timeParts[2] || 0;
-  const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, sec);
-  // If editing, preserve original date
-  if (editingId) {
-    const entries = loadEntries();
-    const orig = entries.find(e => e.id === editingId);
-    if (orig) {
-      const origDate = new Date(orig.timestamp);
-      ts.setFullYear(origDate.getFullYear(), origDate.getMonth(), origDate.getDate());
-    }
-  }
+  const dateParts = dateVal.split('-').map(Number);
+  const ts = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], h, m, sec);
   const notes = document.getElementById('mNotes').value.trim() || undefined;
 
   let data = { type: currentType, timestamp: ts.toISOString(), notes };
