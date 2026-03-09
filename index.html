@@ -59,6 +59,8 @@
   .toggle-btn{flex:1;padding:.65rem .5rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
   .toggle-btn.active{border-color:var(--accent);background:var(--accent);color:#fff}
   .toggle-btn:disabled{opacity:.4;cursor:not-allowed}
+  .setting-toggle-btn{flex:1;padding:.65rem .5rem;border:2px solid var(--bg);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
+  .setting-toggle-btn.active{border-color:var(--still);background:var(--still);color:#fff}
   .modal-actions{display:flex;gap:.75rem;margin-top:1.5rem}
   .modal-actions button{flex:1;padding:.8rem;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer}
   .btn-cancel{background:var(--bg);color:var(--text)}
@@ -314,7 +316,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 08:01</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 08:14</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -397,12 +399,16 @@
       </div>
       <input type="number" id="setLimitValue" min="1" max="60" placeholder="Min" oninput="saveSettings()">
     </div>
-    <div class="setting-row">
-      <input type="checkbox" class="setting-check" id="setTimerSideMode" onchange="saveSettings()">
-      <div style="flex:1">
-        <label for="setTimerSideMode">Brustseitenzeit-Modus</label>
-        <div class="setting-desc">Timer zeigt die aktuelle Brustseitenzeit statt Gesamtzeit (antippen um zwischen abgelaufener und verbleibender Zeit zu wechseln)</div>
+    <div class="setting-row" style="flex-wrap:wrap">
+      <div style="flex:1;min-width:100%">
+        <label>Live-Session Zeitmodus default</label>
+        <div class="setting-desc">Neue Sessions starten in diesem Modus (umschaltbar im Widget)</div>
       </div>
+      <div class="toggle-group" style="margin-top:.4rem">
+        <button class="setting-toggle-btn" id="setModeGesamt" onclick="setTimerModeDefault('gesamt')">Gesamt</button>
+        <button class="setting-toggle-btn" id="setModeSeite" onclick="setTimerModeDefault('seite')">Seite</button>
+      </div>
+      <div class="setting-desc" style="margin-top:.3rem"><b>Gesamt</b> — Gesamtzeit über alle Seiten. <b>Seite</b> — Zeit der aktuellen Brustseite (bei gesetztem Limit: antippen für Countdown).</div>
     </div>
     <div class="setting-row">
       <input type="checkbox" class="setting-check" id="setDiaperEnabled" onchange="toggleSettingDiaper()">
@@ -551,7 +557,7 @@ function swLoadState() {
     swSideOffset = s.sideOffset || { links: 0, rechts: 0, beide: 0 };
     swSessionStartTime = s.sessionStartTime || null;
     const settings = loadSettings();
-    twSideMode = !!settings.timerSideMode;
+    twSideMode = (settings.timerMode || 'seite') === 'seite';
     twCountdownMode = false;
     return swRunning || swPaused;
   } catch { return false; }
@@ -1107,7 +1113,7 @@ function swSwitchSideUI(newSide) {
 function swStart() {
   // Init timer mode from settings
   const _s = loadSettings();
-  twSideMode = !!_s.timerSideMode;
+  twSideMode = (_s.timerMode || 'seite') === 'seite';
   twCountdownMode = false;
   // Save side
   const sideEl = document.getElementById('mSide');
@@ -2340,7 +2346,6 @@ function saveSettings() {
   const s = loadSettings();
   s.limitEnabled = document.getElementById('setLimitEnabled').checked;
   s.limitValue = parseInt(document.getElementById('setLimitValue').value) || 0;
-  s.timerSideMode = document.getElementById('setTimerSideMode').checked;
   s.diaperEnabled = document.getElementById('setDiaperEnabled').checked;
   s.diaperValue = parseFloat(document.getElementById('setDiaperValue').value) || 0;
   localStorage.setItem('baby_tracker_settings', JSON.stringify(s));
@@ -2348,6 +2353,13 @@ function saveSettings() {
   if (s.limitEnabled && s.limitValue > 0) localStorage.setItem('baby_tracker_switch_interval', s.limitValue);
   else localStorage.removeItem('baby_tracker_switch_interval');
   checkDiaperAlert();
+}
+function setTimerModeDefault(mode) {
+  const s = loadSettings();
+  s.timerMode = mode;
+  localStorage.setItem('baby_tracker_settings', JSON.stringify(s));
+  document.getElementById('setModeGesamt').classList.toggle('active', mode === 'gesamt');
+  document.getElementById('setModeSeite').classList.toggle('active', mode === 'seite');
 }
 function toggleSettingLimit() {
   document.getElementById('setLimitValue').disabled = !document.getElementById('setLimitEnabled').checked;
@@ -2362,7 +2374,9 @@ function openSettings() {
   document.getElementById('setLimitEnabled').checked = !!s.limitEnabled;
   document.getElementById('setLimitValue').value = s.limitValue || '';
   document.getElementById('setLimitValue').disabled = !s.limitEnabled;
-  document.getElementById('setTimerSideMode').checked = !!s.timerSideMode;
+  const timerMode = s.timerMode || 'seite';
+  document.getElementById('setModeGesamt').classList.toggle('active', timerMode === 'gesamt');
+  document.getElementById('setModeSeite').classList.toggle('active', timerMode === 'seite');
   document.getElementById('setDiaperEnabled').checked = !!s.diaperEnabled;
   document.getElementById('setDiaperValue').value = s.diaperValue || '';
   document.getElementById('setDiaperValue').disabled = !s.diaperEnabled;
