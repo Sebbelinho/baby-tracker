@@ -154,6 +154,9 @@
   .timer-sides{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:3rem;gap:.6rem;font-size:.8rem;font-weight:500;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums;pointer-events:none}
   .timer-sides .tw-side-active{color:var(--still);font-weight:700}
   .timer-time.paused{opacity:.5}
+  .tw-mode-toggle{display:flex;gap:.4rem;justify-content:center;margin:-.2rem 0 .5rem}
+  .tw-mode-btn{background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:1rem;padding:.2rem .7rem;font-size:.7rem;font-weight:500;color:rgba(255,255,255,.5);cursor:pointer;transition:all .2s}
+  .tw-mode-btn.active{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.5);color:#fff}
   .timer-controls{display:flex;gap:1rem;align-items:center}
   .timer-btn{border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:600;transition:transform .15s,opacity .15s}
   .timer-btn:active{transform:scale(.9)}
@@ -311,7 +314,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 07:26</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 08:01</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -437,6 +440,10 @@
       <div class="timer-time" id="twTime" onclick="twToggleCountdown()" style="cursor:pointer">00:00:00</div>
       <div class="timer-sides" id="twSides"></div>
     </div>
+    <div class="tw-mode-toggle" id="twModeToggle">
+      <button class="tw-mode-btn" id="twModeTotal" onclick="twSetMode(false)">Gesamt</button>
+      <button class="tw-mode-btn" id="twModeSide" onclick="twSetMode(true)">Seite</button>
+    </div>
     <div class="timer-controls">
       <button class="timer-btn timer-btn-switch" id="twSwitchBtn" onclick="twSwitch()"><span class="tw-switch-icon"><span></span><span></span></span><span class="tw-switch-label">Wechsel</span></button>
       <button class="timer-btn timer-btn-pause" id="twPauseBtn" onclick="twTogglePause()"><span class="tw-icon"><span class="tw-pause-bars"><span></span><span></span></span></span></button>
@@ -543,6 +550,9 @@ function swLoadState() {
     limitDismissedSides = s.limitDismissedSides || {};
     swSideOffset = s.sideOffset || { links: 0, rechts: 0, beide: 0 };
     swSessionStartTime = s.sessionStartTime || null;
+    const settings = loadSettings();
+    twSideMode = !!settings.timerSideMode;
+    twCountdownMode = false;
     return swRunning || swPaused;
   } catch { return false; }
 }
@@ -1095,6 +1105,10 @@ function swSwitchSideUI(newSide) {
 }
 
 function swStart() {
+  // Init timer mode from settings
+  const _s = loadSettings();
+  twSideMode = !!_s.timerSideMode;
+  twCountdownMode = false;
   // Save side
   const sideEl = document.getElementById('mSide');
   if (sideEl) swSide = sideEl.value;
@@ -1425,6 +1439,7 @@ function hideSwitchBanner() {
 // --- Timer Widget ---
 const TW_CIRCUMFERENCE = 2 * Math.PI * 90; // r=90 from SVG
 let twCountdownMode = false; // false = elapsed, true = remaining
+let twSideMode = false; // false = total, true = per-side (runtime toggle)
 
 // Synchronized blink toggle (used by twUpdate for ring + switch button)
 let twBlinkOn = true;
@@ -1495,8 +1510,7 @@ function twUpdate() {
   // Total time / Side time display
   const timeEl = document.getElementById('twTime');
   if (timeEl) {
-    const s = loadSettings();
-    if (s.timerSideMode) {
+    if (twSideMode) {
       const sideMs = segTotals[swSide] || 0;
       const interval = getEffectiveInterval();
       if (twCountdownMode && interval) {
@@ -1510,6 +1524,11 @@ function twUpdate() {
     }
     timeEl.classList.toggle('paused', swPaused);
   }
+  // Mode toggle buttons
+  const mTotal = document.getElementById('twModeTotal');
+  const mSide = document.getElementById('twModeSide');
+  if (mTotal) mTotal.classList.toggle('active', !twSideMode);
+  if (mSide) mSide.classList.toggle('active', twSideMode);
 
   // Side label
   const sideMap = { links: 'Links', rechts: 'Rechts', beide: 'Beide' };
@@ -1585,9 +1604,16 @@ function twUpdate() {
   }
 }
 
+let twCountdownMemory = false; // remember countdown state when switching modes
+function twSetMode(sideMode) {
+  if (twSideMode && !sideMode) twCountdownMemory = twCountdownMode;
+  if (!twSideMode && sideMode) twCountdownMode = twCountdownMemory;
+  twSideMode = sideMode;
+  twUpdate();
+}
+
 function twToggleCountdown() {
-  const s = loadSettings();
-  if (!s.timerSideMode) return;
+  if (!twSideMode) return;
   const interval = getEffectiveInterval();
   if (!interval) return;
   twCountdownMode = !twCountdownMode;
@@ -2367,6 +2393,11 @@ function confirmDeleteAll() {
   const input = document.getElementById('deleteConfirmInput');
   if (!input || input.value !== 'Ja, sicher') { alert('Bitte "Ja, sicher" eingeben um zu bestätigen.'); return; }
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(SW_KEY);
+  localStorage.removeItem('baby_tracker_switch_interval');
+  localStorage.removeItem('baby_tracker_settings');
+  swClearState();
+  twHide();
   renderEntries();
   renderDashboard();
   closeModal();
