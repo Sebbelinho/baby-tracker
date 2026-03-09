@@ -311,7 +311,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 06:36</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 09.03.2026, 06:45</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -1099,17 +1099,23 @@ function swStart() {
     if (!isNaN(v) && v > 0) localStorage.setItem('baby_tracker_switch_interval', v);
     else localStorage.removeItem('baby_tracker_switch_interval');
   }
-  // Adopt manual duration as segment if current live timer is at 0:00 and no segments exist yet
+  // Adopt manual durations as segments if no segments exist yet
   if (swCurrentSegmentMs() === 0 && swSegments.length === 0) {
-    const sideFieldId = 'mDur' + swSide.charAt(0).toUpperCase() + swSide.slice(1);
-    const manualDur = parseInt(document.getElementById(sideFieldId).value);
-    if (!isNaN(manualDur) && manualDur > 0) {
-      swSegments.push({ side: swSide, ms: manualDur * 60000 });
-      // Adjust start time backwards by manual duration
+    let totalManualMs = 0;
+    ['links', 'rechts', 'beide'].forEach(side => {
+      const fieldId = 'mDur' + side.charAt(0).toUpperCase() + side.slice(1);
+      const manualDur = parseInt(document.getElementById(fieldId).value);
+      if (!isNaN(manualDur) && manualDur > 0) {
+        swSegments.push({ side, ms: manualDur * 60000 });
+        totalManualMs += manualDur * 60000;
+      }
+    });
+    // Adjust start time backwards by total manual duration
+    if (totalManualMs > 0) {
       const timeEl = document.getElementById('mTime');
       if (timeEl) {
         const now = new Date();
-        now.setMinutes(now.getMinutes() - manualDur);
+        now.setMinutes(now.getMinutes() - Math.round(totalManualMs / 60000));
         timeEl.value = now.toTimeString().slice(0, 8);
       }
     }
