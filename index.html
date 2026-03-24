@@ -338,7 +338,7 @@
 <body>
 
 <header>
-  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 24.03.2026, 23:54</span></i>
+  <h1>Baby Tracker</h1><i class="info-badge" onclick="this.classList.toggle('show')">i<span class="info-tooltip">Stand: 25.03.2026, 00:23</span></i>
   <button class="settings-btn" onclick="openSettings()" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.64.06.94L2.86 14.52a.49.49 0 0 0-.12.61l1.92 3.32a.49.49 0 0 0 .59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.48.48 0 0 0 .48.41h3.84a.48.48 0 0 0 .48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96a.49.49 0 0 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg></button>
   <div id="clock"></div>
 </header>
@@ -1223,19 +1223,24 @@ function swStart() {
     if (!isNaN(v) && v > 0) localStorage.setItem('baby_tracker_switch_interval', v);
     else localStorage.removeItem('baby_tracker_switch_interval');
   }
-  // Adopt manual durations as segments if no segments exist yet
-  if (swCurrentSegmentMs() === 0 && swSegments.length === 0) {
+  // When editing, re-read duration fields (user may have changed them)
+  // For new entries, adopt manual durations if no live segments exist yet
+  if (swCurrentSegmentMs() === 0 && (swSegments.length === 0 || editingId)) {
+    const newSegments = [];
     let totalManualMs = 0;
     ['links', 'rechts', 'beide'].forEach(side => {
-      const fieldId = 'mDur' + side.charAt(0).toUpperCase() + side.slice(1);
-      const manualDur = parseInt(document.getElementById(fieldId).value);
-      if (!isNaN(manualDur) && manualDur > 0) {
-        swSegments.push({ side, ms: manualDur * 60000 });
-        totalManualMs += manualDur * 60000;
+      const labelId = 'sideTime' + side.charAt(0).toUpperCase() + side.slice(1);
+      const ms = parseSideTimeMs(labelId);
+      if (ms > 0) {
+        newSegments.push({ side, ms });
+        totalManualMs += ms;
       }
     });
-    // Adjust start time backwards by total manual duration
-    if (totalManualMs > 0) {
+    if (newSegments.length > 0) {
+      swSegments = newSegments;
+    }
+    // Adjust start time backwards by total manual duration (new entries only)
+    if (!editingId && totalManualMs > 0) {
       const timeEl = document.getElementById('mTime');
       if (timeEl) {
         const now = new Date();
@@ -1957,9 +1962,9 @@ function editEntry(id) {
 function swRestoreSegmentsFromEntry(entry) {
   // Rebuild segments from entry data without activating the stopwatch
   swSegments = [];
-  const msLinks = entry.secLinks ? entry.secLinks * 1000 : (entry.durationLinks || 0) * 60000;
-  const msRechts = entry.secRechts ? entry.secRechts * 1000 : (entry.durationRechts || 0) * 60000;
-  const msBeide = entry.secBeide ? entry.secBeide * 1000 : (entry.durationBeide || 0) * 60000;
+  const msLinks = entry.secLinks ? entry.secLinks * 1000 : (entry.durationLinks || (entry.side === 'links' ? entry.durationMin : 0) || 0) * 60000;
+  const msRechts = entry.secRechts ? entry.secRechts * 1000 : (entry.durationRechts || (entry.side === 'rechts' ? entry.durationMin : 0) || 0) * 60000;
+  const msBeide = entry.secBeide ? entry.secBeide * 1000 : (entry.durationBeide || (entry.side === 'beide' && !entry.durationLinks ? entry.durationMin : 0) || 0) * 60000;
   if (entry.sideOrder && entry.sideOrder.length > 0) {
     const sideTotals = { links: msLinks, rechts: msRechts, beide: msBeide };
     const sideCount = {};
@@ -1981,6 +1986,8 @@ function swRestoreSegmentsFromEntry(entry) {
   swPaused = false;
   stopwatchStart = null;
   stopwatchElapsed = 0;
+  // Persist restored segments so they survive any state reloads
+  if (swSegments.length > 0) swSaveState();
 }
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
